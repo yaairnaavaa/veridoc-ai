@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, useState } from "react";
 import type { DiagnosisMode } from "@/lib/veridoc/localInference";
 import { PrivacyBadge } from "@/components/veridoc/PrivacyBadge";
 import { StepDiagnosis } from "@/components/veridoc/StepDiagnosis";
@@ -8,69 +8,70 @@ import { StepResults } from "@/components/veridoc/StepResults";
 import { StepUploadLabs } from "@/components/veridoc/StepUploadLabs";
 import { clearPendingLabsFile } from "@/lib/veridoc/sessionStore";
 
- type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3;
 
- type WizardState = {
-   step: Step;
-   labsFile: File | null;
-   diagnosisMode: DiagnosisMode;
-   diagnosisFile: File | null;
-   diagnosisText: string;
- };
+type WizardState = {
+  step: Step;
+  labsFile: File | null;
+  diagnosisMode: DiagnosisMode;
+  diagnosisFile: File | null;
+  diagnosisText: string;
+};
 
- type WizardAction =
-   | { type: "setStep"; step: Step }
-   | { type: "setLabsFile"; file: File | null }
-   | { type: "setDiagnosisMode"; mode: DiagnosisMode }
-   | { type: "setDiagnosisFile"; file: File | null }
-   | { type: "setDiagnosisText"; text: string }
-   | { type: "clearSession" };
+type WizardAction =
+  | { type: "setStep"; step: Step }
+  | { type: "setLabsFile"; file: File | null }
+  | { type: "setDiagnosisMode"; mode: DiagnosisMode }
+  | { type: "setDiagnosisFile"; file: File | null }
+  | { type: "setDiagnosisText"; text: string }
+  | { type: "clearSession" };
 
- const initialState: WizardState = {
-   step: 1,
-   labsFile: null,
-   diagnosisMode: "none",
-   diagnosisFile: null,
-   diagnosisText: "",
- };
+const initialState: WizardState = {
+  step: 1,
+  labsFile: null,
+  diagnosisMode: "none",
+  diagnosisFile: null,
+  diagnosisText: "",
+};
 
- const reducer = (state: WizardState, action: WizardAction): WizardState => {
-   switch (action.type) {
-     case "setStep":
-       return { ...state, step: action.step };
-     case "setLabsFile":
-       return { ...state, labsFile: action.file };
-     case "setDiagnosisMode":
-       return {
-         ...state,
-         diagnosisMode: action.mode,
-         diagnosisFile: action.mode === "file" ? state.diagnosisFile : null,
-         diagnosisText: action.mode === "text" ? state.diagnosisText : "",
-       };
-     case "setDiagnosisFile":
-       return { ...state, diagnosisFile: action.file };
-     case "setDiagnosisText":
-       return { ...state, diagnosisText: action.text };
-     case "clearSession":
-       return { ...initialState };
-     default:
-       return state;
-   }
- };
+const reducer = (state: WizardState, action: WizardAction): WizardState => {
+  switch (action.type) {
+    case "setStep":
+      return { ...state, step: action.step };
+    case "setLabsFile":
+      return { ...state, labsFile: action.file };
+    case "setDiagnosisMode":
+      return {
+        ...state,
+        diagnosisMode: action.mode,
+        diagnosisFile: action.mode === "file" ? state.diagnosisFile : null,
+        diagnosisText: action.mode === "text" ? state.diagnosisText : "",
+      };
+    case "setDiagnosisFile":
+      return { ...state, diagnosisFile: action.file };
+    case "setDiagnosisText":
+      return { ...state, diagnosisText: action.text };
+    case "clearSession":
+      return { ...initialState };
+    default:
+      return state;
+  }
+};
 
- const MAX_FILE_BYTES = 25 * 1024 * 1024;
+// MODIFICADO: Reducido a 15MB para permitir almacenamiento directo en MongoDB (Límite BSON 16MB)
+const MAX_FILE_BYTES = 15 * 1024 * 1024;
 
- const formatBytes = (bytes: number) => {
-   if (bytes < 1024) {
-     return `${bytes} B`;
-   }
-   const kb = bytes / 1024;
-   if (kb < 1024) {
-     return `${kb.toFixed(1)} KB`;
-   }
-   const mb = kb / 1024;
-   return `${mb.toFixed(1)} MB`;
- };
+const formatBytes = (bytes: number) => {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  const kb = bytes / 1024;
+  if (kb < 1024) {
+    return `${kb.toFixed(1)} KB`;
+  }
+  const mb = kb / 1024;
+  return `${mb.toFixed(1)} MB`;
+};
 
 type WizardProps = {
   initialLabsFile?: File | null;
@@ -78,12 +79,44 @@ type WizardProps = {
 
 export const Wizard = ({ initialLabsFile }: WizardProps) => {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (initialLabsFile) {
       dispatch({ type: "setLabsFile", file: initialLabsFile });
     }
   }, [initialLabsFile]);
+
+  // NUEVA FUNCIÓN: Maneja la subida a MongoDB antes de continuar
+  const handleUploadAndContinue = async () => {
+    if (!state.labsFile) return;
+
+    try {
+      setIsUploading(true);
+      
+      const formData = new FormData();
+      formData.append("file", state.labsFile);
+
+      const response = await fetch("/api/labs/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error al subir el archivo");
+      }
+
+      // Si se subió correctamente, avanzamos al siguiente paso
+      dispatch({ type: "setStep", step: 2 });
+
+    } catch (error) {
+      console.error(error);
+      alert("Hubo un error guardando el archivo en la base de datos.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const steps = [
     { id: 1, label: "Upload your labs" },
@@ -221,7 +254,8 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
                   dispatch({ type: "setLabsFile", file })
                 }
                 onClear={() => dispatch({ type: "setLabsFile", file: null })}
-                onContinue={() => dispatch({ type: "setStep", step: 2 })}
+                // MODIFICADO: Usamos la nueva función que sube el archivo
+                onContinue={handleUploadAndContinue}
               />
             ) : null}
 

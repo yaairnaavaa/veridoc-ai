@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
 import { analyzeMedicalRecord } from "@/app/actions/analyze-medical-record";
+import { NearAIAnalysis } from "@/components/veridoc/NearAIAnalysis";
 
  const ACCEPTED_TYPES = [
    "application/pdf",
@@ -244,6 +245,16 @@ import { analyzeMedicalRecord } from "@/app/actions/analyze-medical-record";
                 )}
               </>
             )}
+          </div>
+        ) : null}
+
+        {/* Paso 2: Análisis con Inteligencia Artificial */}
+        {labsFile && isPdf && analysisResult?.success ? (
+          <div className="mt-8 border-t border-slate-200 pt-8">
+            <h3 className="mb-4 text-sm font-semibold text-slate-700">
+              Paso 2: Análisis con Inteligencia Artificial
+            </h3>
+            <NearAIAnalysis />
           </div>
         ) : null}
 

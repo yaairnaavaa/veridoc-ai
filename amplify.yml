@@ -3,8 +3,10 @@ frontend:
   phases:
     preBuild:
       commands:
-        # Clean install from lockfile so Linux gets correct native binaries (e.g. lightningcss-linux-x64-gnu).
-        # Do not skip optional dependencies.
+        # Remove node_modules so we never use a cache from another platform (avoids
+        # missing lightningcss.linux-x64-gnu.node and tailwindcss-oxide.linux-x64-gnu.node).
+        - rm -rf node_modules
+        # Clean install from lockfile so Linux gets correct native binaries.
         - npm ci
     build:
       commands:

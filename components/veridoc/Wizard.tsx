@@ -58,7 +58,7 @@ const reducer = (state: WizardState, action: WizardAction): WizardState => {
   }
 };
 
-// MODIFICADO: Reducido a 15MB para permitir almacenamiento directo en MongoDB (Límite BSON 16MB)
+// Límite razonable para análisis en local (sin subir a servidor)
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
 
 const formatBytes = (bytes: number) => {
@@ -79,7 +79,6 @@ type WizardProps = {
 
 export const Wizard = ({ initialLabsFile }: WizardProps) => {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (initialLabsFile) {
@@ -87,35 +86,9 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
     }
   }, [initialLabsFile]);
 
-  // NUEVA FUNCIÓN: Maneja la subida a MongoDB antes de continuar
-  const handleUploadAndContinue = async () => {
+  const handleContinueFromLabs = () => {
     if (!state.labsFile) return;
-
-    try {
-      setIsUploading(true);
-      
-      const formData = new FormData();
-      formData.append("file", state.labsFile);
-
-      const response = await fetch("/api/labs/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Error al subir el archivo");
-      }
-
-      // Si se subió correctamente, avanzamos al siguiente paso
-      dispatch({ type: "setStep", step: 2 });
-
-    } catch (error) {
-      console.error(error);
-      alert("Hubo un error guardando el archivo en la base de datos.");
-    } finally {
-      setIsUploading(false);
-    }
+    dispatch({ type: "setStep", step: 2 });
   };
 
   const steps = [
@@ -254,8 +227,7 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
                   dispatch({ type: "setLabsFile", file })
                 }
                 onClear={() => dispatch({ type: "setLabsFile", file: null })}
-                // MODIFICADO: Usamos la nueva función que sube el archivo
-                onContinue={handleUploadAndContinue}
+                onContinue={handleContinueFromLabs}
               />
             ) : null}
 

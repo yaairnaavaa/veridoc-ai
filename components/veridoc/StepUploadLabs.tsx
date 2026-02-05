@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
 import { analyzeMedicalRecord } from "@/app/actions/analyze-medical-record";
-import { NearAIAnalysis } from "@/components/veridoc/NearAIAnalysis";
 
  const ACCEPTED_TYPES = [
    "application/pdf",
@@ -29,6 +28,7 @@ import { NearAIAnalysis } from "@/components/veridoc/NearAIAnalysis";
    onContinue,
  }: StepUploadLabsProps) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const analyzedFileRef = useRef<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -54,6 +54,7 @@ import { NearAIAnalysis } from "@/components/veridoc/NearAIAnalysis";
       setIsPreviewOpen(false);
       setIsPdfPreviewOpen(false);
       setAnalysisResult(null);
+      analyzedFileRef.current = null;
       return;
     }
 
@@ -61,6 +62,40 @@ import { NearAIAnalysis } from "@/components/veridoc/NearAIAnalysis";
     setPreviewUrl(url);
     return () => {
       URL.revokeObjectURL(url);
+    };
+  }, [labsFile]);
+
+  // When the file comes from the landing (initialLabsFile), run extraction here; in-step selection runs it in handleFile
+  useEffect(() => {
+    if (!labsFile || labsFile.type !== "application/pdf") return;
+    if (analyzedFileRef.current === labsFile) return;
+    if (isLoading || analysisResult?.success) return;
+
+    analyzedFileRef.current = labsFile;
+    let cancelled = false;
+    (async () => {
+      setIsLoading(true);
+      setError(null);
+      setAnalysisResult(null);
+      try {
+        const formData = new FormData();
+        formData.append("file", labsFile);
+        const result = await analyzeMedicalRecord(formData);
+        if (!cancelled) {
+          setAnalysisResult(result);
+          if (!result.success) setError(result.message || "Error analyzing the document.");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError("Error processing the file. Please try again.");
+          setAnalysisResult(null);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
     };
   }, [labsFile]);
 
@@ -85,8 +120,8 @@ import { NearAIAnalysis } from "@/components/veridoc/NearAIAnalysis";
     setAnalysisResult(null);
     onFileSelect(file);
 
-    // Solo analizar si es PDF
     if (file.type === "application/pdf") {
+      analyzedFileRef.current = file;
       setIsLoading(true);
       try {
         const formData = new FormData();
@@ -128,8 +163,11 @@ import { NearAIAnalysis } from "@/components/veridoc/NearAIAnalysis";
    };
 
   const isPdf = labsFile?.type === "application/pdf";
+  const canContinue =
+    Boolean(labsFile) &&
+    (labsFile.type !== "application/pdf" || (analysisResult?.success === true));
 
-   return (
+  return (
     <section className="grid gap-6 pb-24 sm:pb-0">
       <div className="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm backdrop-blur sm:p-6">
          <div className="flex flex-col gap-3">
@@ -190,13 +228,24 @@ import { NearAIAnalysis } from "@/components/veridoc/NearAIAnalysis";
           </div>
         ) : null}
 
-        {/* Indicador de carga */}
+        {/* Lectura del archivo en curso */}
         {isLoading && labsFile ? (
-          <div className="mt-4 rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-700">
-            <div className="flex items-center gap-2">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-teal-600 border-t-transparent"></div>
-              <span>Analizando documento médico...</span>
+          <div
+            className="mt-5 flex flex-col items-center gap-4 rounded-2xl border-2 border-teal-200 bg-teal-50/80 px-6 py-8 text-center"
+            role="status"
+            aria-live="polite"
+            aria-label="Reading file"
+          >
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-teal-500 border-t-transparent" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-teal-800">
+                Reading your file…
+              </p>
+              <p className="text-xs text-teal-600 max-w-sm">
+                Extracting text from the PDF. This may take 1–2 minutes for long or complex documents.
+              </p>
             </div>
+            <p className="text-xs text-teal-500">Please don’t close this page.</p>
           </div>
         ) : null}
 
@@ -245,16 +294,6 @@ import { NearAIAnalysis } from "@/components/veridoc/NearAIAnalysis";
                 )}
               </>
             )}
-          </div>
-        ) : null}
-
-        {/* Paso 2: Análisis con Inteligencia Artificial */}
-        {labsFile && isPdf && analysisResult?.success ? (
-          <div className="mt-8 border-t border-slate-200 pt-8">
-            <h3 className="mb-4 text-sm font-semibold text-slate-700">
-              Paso 2: Análisis con Inteligencia Artificial
-            </h3>
-            <NearAIAnalysis />
           </div>
         ) : null}
 
@@ -358,11 +397,14 @@ import { NearAIAnalysis } from "@/components/veridoc/NearAIAnalysis";
        </div>
 
       <div className="sticky bottom-0 z-10 -mx-4 border-t border-white/70 bg-[#f5fbfb]/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
-        <div className="flex items-center justify-end">
+        <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:justify-end">
+          {labsFile && isPdf && isLoading && (
+            <p className="text-xs text-slate-500">Extracting document…</p>
+          )}
           <button
             type="button"
             onClick={onContinue}
-            disabled={!labsFile}
+            disabled={!canContinue}
             className="inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
           >
             Continue

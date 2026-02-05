@@ -27,19 +27,34 @@ export async function analyzeMedicalRecord(formData: FormData) {
     const uploadRes = await fetch(`${LLAMA_API_URL}/upload`, {
       method: "POST",
       headers: { Authorization: `Bearer ${llamaKey}` },
-      body: uploadForm, 
+      body: uploadForm,
     });
 
-    if (!uploadRes.ok) throw new Error(`Error subida LlamaParse: ${uploadRes.statusText}`);
-    const { id: jobId } = await uploadRes.json();
+    if (!uploadRes.ok) {
+      const errBody = await uploadRes.text();
+      let errMsg = `Error al subir el PDF (${uploadRes.status}).`;
+      try {
+        const errJson = JSON.parse(errBody);
+        if (errJson.detail || errJson.message) errMsg += ` ${errJson.detail || errJson.message}`;
+      } catch {
+        if (errBody && errBody.length < 300) errMsg += ` ${errBody}`;
+      }
+      throw new Error(errMsg);
+    }
+    const uploadData = await uploadRes.json();
+    const jobId = uploadData.id ?? uploadData.job_id;
+    if (!jobId) {
+      console.error("Respuesta de upload:", uploadData);
+      throw new Error("LlamaParse no devolvió un ID de trabajo.");
+    }
     console.log(`✅ Archivo subido exitosamente. Job ID: ${jobId}`);
 
     // Paso 2: Polling (Esperar a que termine)
     console.log("\n⏳ [2/3] LlamaParse está procesando el PDF...");
-    console.log("   (Esto puede tomar unos segundos)");
+    console.log("   (Puede tardar hasta 1–2 minutos en PDFs largos)");
     let markdown = "";
     let attempts = 0;
-    const maxAttempts = 30;
+    const maxAttempts = 90; // ~90 segundos para PDFs complejos o largos
     
     while (attempts < maxAttempts) {
       await new Promise(r => setTimeout(r, 1000)); // Esperar 1 seg
@@ -57,22 +72,51 @@ export async function analyzeMedicalRecord(formData: FormData) {
       
       if (jobData.status === "SUCCESS") {
         console.log(`\n✅ ¡LlamaParse completó el procesamiento! (${attempts} segundos)`);
-        
+
         // Paso 3: Obtener Markdown
         console.log("📥 [3/3] Descargando resultado en formato Markdown...");
         const resultRes = await fetch(`${LLAMA_API_URL}/job/${jobId}/result/markdown`, {
-            headers: { Authorization: `Bearer ${llamaKey}` },
+          headers: { Authorization: `Bearer ${llamaKey}` },
         });
-        const resultData = await resultRes.json();
-        markdown = resultData.markdown;
+        if (!resultRes.ok) {
+          const errText = await resultRes.text();
+          throw new Error(`Error al obtener el resultado (${resultRes.status}). ${errText.slice(0, 200)}`);
+        }
+        const contentType = resultRes.headers.get("content-type") || "";
+        let resultData: { markdown?: string; md?: string; pages?: { md?: string }[] };
+        if (contentType.includes("application/json")) {
+          resultData = await resultRes.json();
+          markdown =
+            resultData.markdown ??
+            resultData.md ??
+            (Array.isArray((resultData as { pages?: { md?: string }[] }).pages)
+              ? (resultData as { pages: { md?: string }[] }).pages.map((p) => p.md ?? "").join("\n\n")
+              : "") ??
+            "";
+        } else {
+          markdown = await resultRes.text();
+        }
+        if (typeof markdown !== "string") markdown = "";
         console.log("✅ Markdown descargado exitosamente");
         break;
       } else if (jobData.status === "FAILED") {
-        throw new Error("LlamaParse falló al procesar el PDF.");
+        const reason =
+          (jobData as { error?: string; message?: string; failure_reason?: string }).error ??
+          (jobData as { error?: string; message?: string }).message ??
+          (jobData as { failure_reason?: string }).failure_reason;
+        throw new Error(
+          reason
+            ? `LlamaParse no pudo procesar este PDF: ${reason}`
+            : "LlamaParse no pudo procesar este PDF. Si es un escaneo, prueba con un PDF que tenga texto seleccionable o con otra herramienta de OCR."
+        );
       }
     }
 
-    if (!markdown) throw new Error("Tiempo de espera agotado en LlamaParse.");
+    if (!markdown) {
+      throw new Error(
+        "The document is still being processed. PDFs with many pages or complex layouts can take over a minute. Please try again in a moment, or try with a shorter PDF."
+      );
+    }
     
     console.log("\n═══════════════════════════════════════════════════");
     console.log("📝 TEXTO EXTRAÍDO POR LLAMAPARSE");
@@ -177,8 +221,9 @@ export async function analyzeMedicalRecord(formData: FormData) {
       markdown: markdown 
     };
 
-  } catch (error: any) {
-    console.error("Error Pipeline:", error.message);
-    return { success: false, message: 'Error procesando documento.' };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error procesando documento.";
+    console.error("Error Pipeline:", message);
+    return { success: false, message };
   }
 }

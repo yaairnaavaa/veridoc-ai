@@ -25,11 +25,130 @@ type NearAIResponse = {
   };
 };
 
+/** Estructura que debe devolver el LLM para llenar el paso 3 */
+export type NearReport = {
+  summary: string;
+  keyItems: string[];
+  nextSteps: string[];
+  questions: string[];
+  extraInfo?: string;
+};
+
 type AnalyzeNearResult = {
   success: boolean;
-  content?: string;
+  report?: NearReport;
   error?: string;
 };
+
+/** Convierte newlines literales dentro de strings JSON en \\n para que JSON.parse no falle */
+function fixNewlinesInJsonStrings(s: string): string {
+  let result = "";
+  let inString = false;
+  let i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (c === '"') {
+      let back = 0;
+      let j = i - 1;
+      while (j >= 0 && s[j] === "\\") {
+        back++;
+        j--;
+      }
+      if (back % 2 === 0) inString = !inString;
+      result += c;
+      i++;
+      continue;
+    }
+    if (inString && (c === "\n" || c === "\r")) {
+      result += "\\n";
+      if (c === "\r" && s[i + 1] === "\n") i++;
+      i++;
+      continue;
+    }
+    result += c;
+    i++;
+  }
+  return result;
+}
+
+/** Extrae el primer objeto JSON con llaves balanceadas (por si hay texto extra) */
+function extractBalancedJson(text: string): string {
+  const start = text.indexOf("{");
+  if (start === -1) return text;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  let quote = "";
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (c === "\\" && inString) {
+      escape = true;
+      continue;
+    }
+    if ((c === '"' || c === "'") && !inString) {
+      inString = true;
+      quote = c;
+      continue;
+    }
+    if (c === quote) {
+      inString = false;
+      continue;
+    }
+    if (inString) continue;
+    if (c === "{") depth++;
+    else if (c === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return text.slice(start);
+}
+
+/** Cuando JSON.parse falla, intenta extraer campos del texto con regex */
+function extractReportFromText(raw: string): NearReport | null {
+  const summaryMatch = raw.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+  const summary = summaryMatch ? summaryMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"') : "";
+
+  const extraMatch = raw.match(/"extraInfo"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+  const extraInfo = extraMatch ? extraMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"') : undefined;
+
+  const keyItems: string[] = [];
+  const keyArrMatch = raw.match(/"keyItems"\s*:\s*\[([\s\S]*?)\]/);
+  if (keyArrMatch) {
+    const arrContent = keyArrMatch[1];
+    const strMatches = arrContent.matchAll(/"((?:[^"\\]|\\.)*)"/g);
+    for (const m of strMatches) keyItems.push(m[1].replace(/\\"/g, '"'));
+  }
+
+  const nextSteps: string[] = [];
+  const nextArrMatch = raw.match(/"nextSteps"\s*:\s*\[([\s\S]*?)\]/);
+  if (nextArrMatch) {
+    const arrContent = nextArrMatch[1];
+    const strMatches = arrContent.matchAll(/"((?:[^"\\]|\\.)*)"/g);
+    for (const m of strMatches) nextSteps.push(m[1].replace(/\\"/g, '"'));
+  }
+
+  const questions: string[] = [];
+  const qArrMatch = raw.match(/"questions"\s*:\s*\[([\s\S]*?)\]/);
+  if (qArrMatch) {
+    const arrContent = qArrMatch[1];
+    const strMatches = arrContent.matchAll(/"((?:[^"\\]|\\.)*)"/g);
+    for (const m of strMatches) questions.push(m[1].replace(/\\"/g, '"'));
+  }
+
+  if (!summary && keyItems.length === 0 && nextSteps.length === 0 && questions.length === 0) return null;
+  return {
+    summary: summary || "Summary could not be extracted from the response.",
+    keyItems: keyItems.length > 0 ? keyItems : ["Review the lab values with your clinician.", "Note any out-of-range results."],
+    nextSteps: nextSteps.length > 0 ? nextSteps : ["Discuss these results with your doctor.", "Keep a copy for your records."],
+    questions: questions.length > 0 ? questions : ["Which results need follow-up?", "Are any medications affecting these values?"],
+    extraInfo,
+  };
+}
 
 /**
  * Modelo de NEAR AI a usar (fácil de cambiar)
@@ -119,30 +238,33 @@ export async function analyzeWithNearAI(): Promise<AnalyzeNearResult> {
     console.log(`   Modelo: ${MODEL_ID}`);
 
     const SYSTEM_PROMPT = `
-Eres un Asistente Médico Virtual experto en interpretación de análisis clínicos y hematología.
-TU OBJETIVO: Analizar los datos extraídos del texto del PDF y ofrecer una interpretación clínica clara, directa y orientada al paciente.
+You are a Medical Assistant expert in interpreting clinical and lab results.
+Analyze the patient document and respond ONLY with a valid JSON object, no text before or after.
+Write all content in English.
 
-REGLAS DE ORO:
+RULES:
+- Do NOT describe the document (e.g. "the document has a header"). Get to the point.
+- DETECT abnormal values and compare them to reference ranges when available.
+- SYNTHESIZE: group related abnormal values into a logical interpretation.
 
-🚫 NO describas el documento (no digas "el documento tiene una cabecera", "veo una tabla", etc.). Ve al grano.
+Respond with exactly this JSON (use double quotes, escape strings properly):
 
-🧬 DETECTA VALORES ANORMALES: Compara los valores encontrados con los rangos de referencia estándar si no están explícitos.
+{
+  "summary": "A short paragraph: overall state of results, age/gender if available.",
+  "keyItems": ["Item 1 to review", "Item 2", "Item 3"],
+  "nextSteps": ["Next step 1", "Next step 2", "Next step 3"],
+  "questions": ["Question for your clinician 1", "Question 2", "Question 3"],
+  "extraInfo": "Optional free text: critical findings, suggested interpretation, explanation of abnormal results, possible causes. Use \\n for line breaks."
+}
 
-🧠 SINTETIZA: Si ves múltiples valores relacionados alterados (ej. Hemoglobina baja + Hematocrito bajo), agrúpalos en un diagnóstico lógico.
-
-ESTRUCTURA DE RESPUESTA OBLIGATORIA (Usa Markdown):
-
-🏥 Resumen del Paciente
-(Breve mención de edad y género si están disponibles, y el estado general de los resultados).
-
-⚠️ Hallazgos Críticos y Diagnóstico Sugerido
-(El problema principal detectado. Ej: "Posible Anemia Severa").
-
-🔍 Análisis de Resultados Anormales
-[Nombre de la prueba]: Valor encontrado vs Referencia. Explicación sencilla de qué significa esto para la salud.
-
-💡 Posibles Causas
-(Lista 3 causas médicas comunes para estos resultados).
+- summary: 2-4 sentences in English.
+- keyItems: 3-5 key points for the patient to review (abnormal values, panels, etc.).
+- nextSteps: 3-4 recommended actions (e.g. repeat test, see specialist).
+- questions: 3-5 concrete questions to ask the clinician.
+- extraInfo: additional prose in English (critical findings, suggested interpretation, abnormal values explanation, possible causes). If nothing relevant, use empty string "".
+Respond with ONLY the JSON, no \`\`\` or explanations.
+- Do not use trailing commas after the last element in arrays or objects.
+- Use \\n for line breaks inside long strings (e.g. extraInfo).
 `;
 
     const payload = {
@@ -157,8 +279,8 @@ ESTRUCTURA DE RESPUESTA OBLIGATORIA (Usa Markdown):
           content: `Analiza el siguiente documento:\n\n${markdownContent}`
         }
       ],
-      temperature: 0.5,
-      max_tokens: 1000
+      temperature: 0.3,
+      max_tokens: 1500
     };
 
     console.log(`✅ Payload construido (${JSON.stringify(payload).length} bytes)`);
@@ -246,24 +368,60 @@ ESTRUCTURA DE RESPUESTA OBLIGATORIA (Usa Markdown):
 
     const content = data.choices[0].message.content;
 
-    if (!content) {
+    if (!content || !content.trim()) {
       return {
         success: false,
         error: "La respuesta de la API está vacía"
       };
     }
 
+    // Extraer JSON (puede venir dentro de ``` ... ``` o en bruto, con texto antes/después)
+    let jsonStr = content.trim();
+    const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      jsonStr = codeBlockMatch[1].trim();
+    }
+    jsonStr = extractBalancedJson(jsonStr);
+
+    // Sanitizar: comas finales y saltos de línea dentro de strings (el modelo a veces los pone literales)
+    jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+    jsonStr = fixNewlinesInJsonStrings(jsonStr);
+    jsonStr = jsonStr.replace(/[\u0000-\u001F]/g, (c) => (c === '\n' || c === '\r' || c === '\t' ? c : ' '));
+
+    let report: NearReport;
+    try {
+      const parsed = JSON.parse(jsonStr);
+      report = {
+        summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+        keyItems: Array.isArray(parsed.keyItems) ? parsed.keyItems.filter((x: unknown) => typeof x === 'string') : [],
+        nextSteps: Array.isArray(parsed.nextSteps) ? parsed.nextSteps.filter((x: unknown) => typeof x === 'string') : [],
+        questions: Array.isArray(parsed.questions) ? parsed.questions.filter((x: unknown) => typeof x === 'string') : [],
+        extraInfo: typeof parsed.extraInfo === 'string' ? parsed.extraInfo : undefined,
+      };
+    } catch (parseError) {
+      console.warn("JSON.parse failed, trying fallback extraction:", parseError);
+      const fallback = extractReportFromText(content);
+      if (fallback) {
+        console.log("Fallback extraction succeeded, using extracted report.");
+        report = fallback;
+      } else {
+        console.error("Contenido recibido (primeros 800 chars):", content.slice(0, 800));
+        return {
+          success: false,
+          error: "The model response could not be read as valid data. Please try again."
+        };
+      }
+    }
+
     console.log("\n✅ Análisis completado exitosamente");
     if (data.usage) {
       console.log(`📊 Tokens usados: ${data.usage.total_tokens}`);
-      console.log(`   - Prompt: ${data.usage.prompt_tokens} tokens`);
-      console.log(`   - Completion: ${data.usage.completion_tokens} tokens`);
     }
     console.log("═══════════════════════════════════════════════════\n");
 
     return {
       success: true,
-      content: content
+      report
     };
 
   } catch (error: any) {

@@ -164,7 +164,7 @@ import { analyzeMedicalRecord } from "@/app/actions/analyze-medical-record";
 
   const isPdf = labsFile?.type === "application/pdf";
   const canContinue =
-    Boolean(labsFile) &&
+    labsFile != null &&
     (labsFile.type !== "application/pdf" || (analysisResult?.success === true));
 
   return (

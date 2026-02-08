@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useReducer } from "react";
 import type { DiagnosisMode } from "@/lib/veridoc/localInference";
+import type { SavedReport } from "@/lib/veridoc/analysesStore";
+import { addAnalysis } from "@/lib/veridoc/analysesStore";
+import { NavBar } from "@/components/NavBar";
 import { PrivacyBadge } from "@/components/veridoc/PrivacyBadge";
 import { StepDiagnosis } from "@/components/veridoc/StepDiagnosis";
 import { StepResults } from "@/components/veridoc/StepResults";
+import { StepSecondOpinion } from "@/components/veridoc/StepSecondOpinion";
 import { StepUploadLabs } from "@/components/veridoc/StepUploadLabs";
 import { clearPendingLabsFile } from "@/lib/veridoc/sessionStore";
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4;
 
 type WizardState = {
   step: Step;
@@ -16,6 +20,8 @@ type WizardState = {
   diagnosisMode: DiagnosisMode;
   diagnosisFile: File | null;
   diagnosisText: string;
+  /** Set when user goes to step 4 (second opinion); used for marketplace link */
+  lastSavedAnalysisId: string | null;
 };
 
 type WizardAction =
@@ -24,6 +30,7 @@ type WizardAction =
   | { type: "setDiagnosisMode"; mode: DiagnosisMode }
   | { type: "setDiagnosisFile"; file: File | null }
   | { type: "setDiagnosisText"; text: string }
+  | { type: "setLastSavedAnalysisId"; id: string | null }
   | { type: "clearSession" };
 
 const initialState: WizardState = {
@@ -32,6 +39,7 @@ const initialState: WizardState = {
   diagnosisMode: "none",
   diagnosisFile: null,
   diagnosisText: "",
+  lastSavedAnalysisId: null,
 };
 
 const reducer = (state: WizardState, action: WizardAction): WizardState => {
@@ -51,6 +59,8 @@ const reducer = (state: WizardState, action: WizardAction): WizardState => {
       return { ...state, diagnosisFile: action.file };
     case "setDiagnosisText":
       return { ...state, diagnosisText: action.text };
+    case "setLastSavedAnalysisId":
+      return { ...state, lastSavedAnalysisId: action.id };
     case "clearSession":
       return { ...initialState };
     default:
@@ -92,10 +102,28 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
   };
 
   const steps = [
-    { id: 1, label: "Upload your labs" },
+    { id: 1, label: "Upload your labs (PDF)" },
     { id: 2, label: "Diagnosis (optional)" },
     { id: 3, label: "Recommendation" },
+    { id: 4, label: "Second opinion" },
   ];
+
+  const handleRequestSecondOpinion = (report: SavedReport) => {
+    if (!state.labsFile) return;
+    const saved = addAnalysis({
+      labFileName: state.labsFile.name,
+      report: {
+        summary: report.summary,
+        keyItems: report.keyItems,
+        nextSteps: report.nextSteps,
+        questions: report.questions,
+        extraInfo: report.extraInfo,
+        disclaimer: report.disclaimer,
+      },
+    });
+    dispatch({ type: "setLastSavedAnalysisId", id: saved.id });
+    dispatch({ type: "setStep", step: 4 });
+  };
 
   const canGoBack = state.step > 1;
 
@@ -111,71 +139,40 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
     dispatch({ type: "clearSession" });
   };
 
+  const wizardLeftSlot = (
+    <>
+      {canGoBack ? (
+        <button
+          type="button"
+          onClick={handleBack}
+          aria-label="Go back to previous step"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+            <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      ) : (
+        <span className="h-9 w-9 shrink-0" aria-hidden="true" />
+      )}
+      <div className="min-w-0">
+        <p className="truncate text-xs font-semibold uppercase tracking-wider text-slate-500">
+          Veridoc
+        </p>
+        <p className="text-sm font-semibold text-slate-900">
+          Step {state.step}/4
+        </p>
+      </div>
+    </>
+  );
+
   return (
     <div className="relative">
-      <div className="sticky top-0 z-30 border-b border-white/70 bg-[#f5fbfb]/95 backdrop-blur sm:static sm:border-transparent">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3 sm:px-6 lg:px-10">
-          <div className="flex items-center gap-3">
-            {canGoBack ? (
-              <button
-                type="button"
-                onClick={handleBack}
-                aria-label="Go back to previous step"
-                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-                  <path
-                    d="M15 6l-6 6 6 6"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </button>
-            ) : (
-              <span className="h-11 w-11" aria-hidden="true" />
-            )}
-            <div className="leading-tight">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Veridoc
-              </p>
-              <p className="text-sm font-semibold text-slate-900">
-                Local wizard
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:block">
-              <PrivacyBadge />
-            </div>
-            <button
-              type="button"
-              onClick={handleClear}
-              className="inline-flex h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-                <path
-                  d="M4 7h16M9 7V5h6v2m-8 4v6m4-6v6m4-6v6M6 7l1 13h10l1-13"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              Clear session
-            </button>
-          </div>
-        </div>
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 pb-3 text-xs sm:hidden">
-          <span className="font-semibold text-slate-900">
-            Step {state.step}/3
-          </span>
-          <PrivacyBadge compact />
-        </div>
-      </div>
+      <NavBar
+        leftSlot={wizardLeftSlot}
+        variant="wizard"
+        onClearSession={handleClear}
+      />
 
       <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-6 sm:px-6 lg:px-10">
         <div className="grid gap-6 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
@@ -265,6 +262,15 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
                 onBack={() => dispatch({ type: "setStep", step: 2 })}
                 onStartOver={handleClear}
                 onClearSession={handleClear}
+                onRequestSecondOpinion={handleRequestSecondOpinion}
+              />
+            ) : null}
+
+            {state.step === 4 ? (
+              <StepSecondOpinion
+                analysisId={state.lastSavedAnalysisId ?? undefined}
+                onBack={() => dispatch({ type: "setStep", step: 3 })}
+                onStartOver={handleClear}
               />
             ) : null}
           </div>

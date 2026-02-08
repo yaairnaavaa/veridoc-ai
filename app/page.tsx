@@ -1,4 +1,4 @@
-import { AppHeader } from "@/components/AppHeader";
+import { NavBar } from "@/components/NavBar";
 import { HeroUpload } from "@/components/veridoc/HeroUpload";
 
 export default function Home() {
@@ -7,7 +7,7 @@ export default function Home() {
       <div className="relative overflow-hidden">
         <div className="pointer-events-none absolute -top-32 right-0 h-80 w-80 rounded-full bg-gradient-to-br from-teal-200/50 via-sky-200/40 to-white blur-3xl" />
         <div className="pointer-events-none absolute left-0 top-40 h-72 w-72 rounded-full bg-gradient-to-tr from-cyan-200/40 via-emerald-200/30 to-white blur-3xl" />
-        <AppHeader />
+        <NavBar />
         <main className="relative mx-auto flex w-full max-w-6xl flex-col gap-16 px-4 pb-20 sm:gap-20 sm:px-8 lg:px-10">
           <section className="grid items-center gap-8 pb-4 pt-0 md:grid-cols-2 md:gap-12 md:pb-8 md:pt-4">
             {/* On mobile: upload first (order-1). On desktop: text left, upload right. */}

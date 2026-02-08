@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { TatchiProvider } from "@/components/TatchiProvider";
+import { PrivyProvider } from "@/components/PrivyProvider";
+import { NearProvider } from "@/context/NearContext";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,7 +30,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <TatchiProvider>{children}</TatchiProvider>
+        <PrivyProvider>
+          <NearProvider>{children}</NearProvider>
+        </PrivyProvider>
       </body>
     </html>
   );

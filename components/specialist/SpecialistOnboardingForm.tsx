@@ -14,7 +14,8 @@ export function SpecialistOnboardingForm({
   const updateProfileWithId = updateSpecialistProfile.bind(null, userWallet);
   
   const [state, formAction, isPending] = useActionState(updateProfileWithId, {
-    message: null,
+    success: false,
+    message: "",
     errors: {},
   });
 

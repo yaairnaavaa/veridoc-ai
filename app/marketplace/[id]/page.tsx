@@ -1,139 +1,141 @@
-"use client";
-
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { NavBar } from "@/components/NavBar";
+import {
+  Star,
+  MapPin,
+  Languages,
+  CalendarCheck,
+  Award,
+  ChevronLeft,
+} from "lucide-react";
+import { getSpecialistById } from "@/app/marketplace/specialists";
+import { RequestSecondOpinion } from "@/app/marketplace/RequestSecondOpinion";
 
-// --- COMPONENTES DE DISEÑO ORIGINALES ---
-const StatusBadge = ({ children }: { children: React.ReactNode }) => (
-  <span className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-1 text-xs text-slate-600">
-    {children}
-  </span>
-);
+type PageProps = {
+  params: Promise<{ id: string }> | { id: string };
+};
 
-const AbstractAvatar = () => (
-  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 shadow-sm ring-1 ring-slate-200/70">
-    <span className="h-4 w-4 rounded-full bg-linear-to-br from-teal-500 to-sky-500" />
-  </span>
-);
+export default async function SpecialistDetailPage(props: PageProps) {
+  const rawParams = props.params ?? {};
+  const params = rawParams instanceof Promise ? await rawParams : rawParams;
+  const id = params.id;
 
-export default function CaseDetailTemplate() {
+  const specialist = await getSpecialistById(id);
+  if (!specialist) notFound();
+
   return (
     <div className="min-h-screen bg-[#f6fbfb] text-slate-900">
-      <div className="relative overflow-hidden">
-        {/* Background Gradients */}
-        <div className="pointer-events-none absolute -top-32 right-0 h-80 w-80 rounded-full bg-linear-to-br from-teal-200/50 via-sky-200/40 to-white blur-3xl" />
-        <div className="pointer-events-none absolute left-0 top-40 h-72 w-72 rounded-full bg-linear-to-tr from-cyan-200/40 via-emerald-200/30 to-white blur-3xl" />
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute -top-32 right-0 h-96 w-96 rounded-full bg-gradient-to-br from-teal-200/40 via-sky-200/30 to-white blur-3xl" />
+        <div className="absolute left-0 top-40 h-80 w-80 rounded-full bg-gradient-to-tr from-cyan-200/30 via-emerald-200/20 to-white blur-3xl" />
+      </div>
 
-        <header className="relative mx-auto flex w-full max-w-6xl items-center justify-between px-6 pb-8 pt-8 sm:px-8 lg:px-10">
-          <Link href="/marketplace" className="flex items-center gap-3">
-            <AbstractAvatar />
-            <div className="flex flex-col leading-tight">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                ← Back to Marketplace
-              </span>
-            </div>
+      <div className="relative z-10">
+        <NavBar />
+
+        <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+          <Link
+            href="/marketplace"
+            className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Volver al marketplace
           </Link>
-        </header>
 
-        <main className="relative mx-auto w-full max-w-6xl px-6 pb-20 sm:px-8 lg:px-10">
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* COLUMNA PRINCIPAL */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Bloque de Información General */}
-              <article className="rounded-3xl border border-white/70 bg-white/80 p-8 shadow-sm backdrop-blur">
-                <div className="flex items-center justify-between mb-6">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Hematology
+          {/* Specialist profile card */}
+          <section className="mt-6 rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm backdrop-blur sm:p-8">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+              <div className="flex shrink-0 flex-col items-center gap-3 sm:w-36">
+                <div className="h-28 w-28 overflow-hidden rounded-full border-2 border-white shadow-md ring-1 ring-slate-100">
+                  <img
+                    src={specialist.image}
+                    alt={specialist.name}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-100">
+                  <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                  <span>{specialist.rating.toFixed(1)}</span>
+                  <span className="font-normal text-amber-600/80">
+                    ({specialist.reviews} reseñas)
                   </span>
-                  <StatusBadge>Urgent</StatusBadge>
                 </div>
-
-                <h1 className="text-3xl font-semibold tracking-tight text-slate-900 mb-6">
-                  Persistent microcytic anemia with borderline ferritin
-                </h1>
-
-                <div className="space-y-4">
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                    Clinical Overview
-                  </h3>
-                  <p className="text-sm leading-7 text-slate-600">
-                    Patient presents with chronic fatigue and low hemoglobin
-                    levels. Initial tests suggest microcytic anemia, but
-                    ferritin levels remain within the lower normal limit.
-                    Seeking a specialized second opinion to rule out underlying
-                    conditions or atypical iron deficiency.
-                  </p>
-                </div>
-
-                <div className="mt-8 flex flex-wrap gap-2">
-                  <StatusBadge>Second Opinion</StatusBadge>
-                  <StatusBadge>Ref: CASE-7721</StatusBadge>
-                </div>
-              </article>
-
-              {/* Bloque de Archivos (Mockup) */}
-              <div className="rounded-3xl border border-white/70 bg-white/80 p-6 shadow-sm backdrop-blur">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">
-                  Case Documentation
-                </h3>
-                <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-white/50">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-[10px] uppercase">
-                      PDF
-                    </div>
-                    <span className="text-sm font-medium text-slate-700">
-                      complete-blood-count.pdf
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                    {specialist.name}
+                  </h1>
+                  {specialist.verified && (
+                    <span
+                      className="flex h-6 w-6 items-center justify-center rounded-full bg-teal-50 text-teal-600"
+                      title="Verificado"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="3">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
                     </span>
-                  </div>
-                  <button className="text-xs font-bold text-teal-600 hover:text-teal-700 transition-colors">
-                    Preview
-                  </button>
+                  )}
+                </div>
+                <p className="mt-1 text-sm font-medium text-slate-500">
+                  {specialist.specialty}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-600">
+                  <span className="flex items-center gap-1.5">
+                    <Award className="h-4 w-4 text-slate-400" />
+                    {specialist.experience} años de experiencia
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <Languages className="h-4 w-4 text-slate-400" />
+                    {specialist.languages.join(", ")}
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="h-4 w-4 text-slate-400" />
+                    {specialist.location}
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <CalendarCheck className="h-4 w-4 text-slate-400" />
+                    Disponibilidad: {specialist.availability}
+                  </span>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {specialist.tags.map((tag, idx) => (
+                    <span
+                      key={idx}
+                      className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-6 flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-slate-900">
+                    {specialist.priceUsdt}
+                  </span>
+                  <span className="text-sm font-medium text-slate-500">USDT</span>
+                  <span className="ml-2 text-sm text-slate-500">
+                    por revisión de panel
+                  </span>
                 </div>
               </div>
             </div>
+          </section>
 
-            {/* COLUMNA LATERAL */}
-            <aside className="space-y-6">
-              <div className="rounded-3xl border border-white/70 bg-white/80 p-8 shadow-sm backdrop-blur">
-                <div className="mb-8">
-                  <span className="text-xs text-slate-500 block mb-1 font-medium tracking-tight">
-                    Expert Review Fee
-                  </span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-semibold text-slate-900">
-                      $85
-                    </span>
-                    <span className="text-sm font-semibold text-slate-400 uppercase">
-                      USD
-                    </span>
-                  </div>
-                </div>
+          {/* Send analyses & request second opinion */}
+          <section className="mt-8">
+            <RequestSecondOpinion
+              specialistId={specialist.id}
+              specialistName={specialist.name}
+              priceUsdt={specialist.priceUsdt}
+            />
+          </section>
 
-                <div className="space-y-3">
-                  <button className="w-full rounded-full bg-slate-900 px-6 py-4 text-sm font-semibold text-white transition hover:bg-slate-800 shadow-lg shadow-slate-200">
-                    Apply for Review
-                  </button>
-                  <button className="w-full rounded-full border border-slate-200 bg-white/80 px-6 py-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300">
-                    Save Case
-                  </button>
-                </div>
-
-                <div className="mt-8 pt-6 border-t border-slate-100">
-                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">
-                    Security Protocol
-                  </h4>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 text-xs text-slate-600">
-                      <div className="h-1.5 w-1.5 rounded-full bg-teal-500" />
-                      <span>End-to-End Encryption</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-slate-600">
-                      <div className="h-1.5 w-1.5 rounded-full bg-teal-500" />
-                      <span>Veridoc Privacy Standard</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </aside>
+          {/* Security note */}
+          <div className="mt-8 rounded-2xl border border-slate-200/60 bg-white/50 px-4 py-3 text-center backdrop-blur">
+            <p className="text-xs text-slate-500">
+              Los datos se envían de forma segura. El especialista solo accede al análisis que tú elijas para esta segunda opinión.
+            </p>
           </div>
         </main>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { AppHeader } from "@/components/veridoc/Header";
+import { NavBar } from "@/components/NavBar";
 import { SpecialistOnboardingForm } from "@/components/specialist/SpecialistOnboardingForm";
 import { ShieldCheck } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -26,7 +26,7 @@ export default function SpecialistOnboardingPage() {
       </div>
 
       <div className="relative z-10">
-        <AppHeader />
+        <NavBar />
 
         <main className="mx-auto w-full max-w-2xl px-4 py-12">
           

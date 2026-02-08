@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { jsPDF } from "jspdf";
 import type { DiagnosisMode } from "@/lib/veridoc/localInference";
 import { generateLocalRecommendation } from "@/lib/veridoc/localInference";
+import type { SavedReport } from "@/lib/veridoc/analysesStore";
 import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
 
  type StepResultsProps = {
@@ -15,6 +16,7 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
    onStartOver: () => void;
    onClearSession: () => void;
    onBack: () => void;
+   onRequestSecondOpinion?: (report: SavedReport) => void;
  };
 
  export const StepResults = ({
@@ -26,6 +28,7 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
    onStartOver,
    onClearSession,
    onBack,
+   onRequestSecondOpinion,
  }: StepResultsProps) => {
    const [nearLoading, setNearLoading] = useState(true);
    const [nearResult, setNearResult] = useState<{
@@ -294,6 +297,24 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
               Session actions
             </p>
+            {onRequestSecondOpinion ? (
+              <button
+                type="button"
+                onClick={() =>
+                  onRequestSecondOpinion({
+                    summary: report.summary,
+                    keyItems: report.keyItems,
+                    nextSteps: report.nextSteps,
+                    questions: report.questions,
+                    extraInfo: report.extraInfo,
+                    disclaimer: report.disclaimer,
+                  })
+                }
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-teal-600 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+              >
+                Solicitar segunda opinión
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={handleDownload}

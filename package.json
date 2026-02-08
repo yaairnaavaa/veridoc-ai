@@ -10,7 +10,13 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@defuse-protocol/intents-sdk": "^0.45.4",
     "@google/generative-ai": "^0.24.1",
+    "@near-js/accounts": "^2.5.1",
+    "@near-js/providers": "^2.5.1",
+    "@near-js/transactions": "^2.5.1",
+    "@noble/hashes": "^2.0.1",
+    "@privy-io/react-auth": "^3.13.1",
     "@tatchi-xyz/sdk": "^0.58.0",
     "jspdf": "^4.1.0",
     "llama-parse": "^0.1.0",

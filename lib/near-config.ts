@@ -21,6 +21,9 @@ export const NEAR_RPC_URL =
 /** NEAR Intents Verifier contract (holds deposits, mt_balance_of, ft_withdraw). */
 export const VERIFIER_CONTRACT_ID = "intents.near";
 
+/** Relayer account that pays gas for meta-transactions (e.g. USDT withdraw). */
+export const RELAYER_ACCOUNT_ID = process.env.NEXT_PUBLIC_NEAR_RELAYER_ACCOUNT_ID ?? "veridoc.near";
+
 /**
  * Valid NEAR account ID: 2–64 chars.
  * - Implicit: exactly 64 lowercase hex (with or without 0x prefix).

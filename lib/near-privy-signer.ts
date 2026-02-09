@@ -1,8 +1,8 @@
 "use client";
 
 import { Signer, type SignedMessage } from "@near-js/signers";
-import type { Transaction, DelegateAction, SignedDelegate } from "@near-js/transactions";
-import { Signature, SignedTransaction } from "@near-js/transactions";
+import type { Transaction, DelegateAction } from "@near-js/transactions";
+import { Signature, SignedDelegate, SignedTransaction, encodeDelegateAction } from "@near-js/transactions";
 import { PublicKey } from "@near-js/crypto";
 import { KeyType } from "@near-js/crypto";
 import type { Provider } from "@near-js/providers";
@@ -74,7 +74,21 @@ export class NearPrivySigner extends Signer {
     return [hash, signedTx];
   }
 
-  async signDelegateAction(_delegateAction: DelegateAction): Promise<[Uint8Array, SignedDelegate]> {
-    throw new Error("Delegate action signing not implemented for Privy NEAR signer");
+  async signDelegateAction(delegateAction: DelegateAction): Promise<[Uint8Array, SignedDelegate]> {
+    const encoded = encodeDelegateAction(delegateAction);
+    const hash = sha256(encoded);
+    const hashHex = `0x${Array.from(hash).map((b) => b.toString(16).padStart(2, "0")).join("")}` as `0x${string}`;
+    const { signature: sigHex } = await this.signRawHash({
+      address: this.accountId,
+      chainType: "near",
+      hash: hashHex,
+    });
+    const sigBytes = hexToBytes(sigHex);
+    const signature = new Signature({
+      keyType: KeyType.ED25519,
+      data: sigBytes,
+    });
+    const signedDelegate = new SignedDelegate({ delegateAction, signature });
+    return [hash, signedDelegate];
   }
 }

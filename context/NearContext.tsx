@@ -24,6 +24,8 @@ export type NearContextValue = {
   nearAccount: Account | null;
   /** Whether we are still creating or loading the NEAR wallet */
   isLoading: boolean;
+  /** True while the relayer/faucet is funding the account (so UI can show "Activating…") */
+  isFunding: boolean;
   /** True if the NEAR account exists on-chain (has been funded). Implicit accounts need a first transfer to exist. */
   accountExistsOnChain: boolean | null;
   /** Create a NEAR wallet for the current user (e.g. after social login without wallet) */
@@ -38,6 +40,7 @@ const defaultValue: NearContextValue = {
   walletId: "",
   nearAccount: null,
   isLoading: false,
+  isFunding: false,
   accountExistsOnChain: null,
   createNearWallet: async () => {},
   refreshAccountExists: async () => {},
@@ -73,6 +76,7 @@ export function NearProvider({ children }: { children: ReactNode }) {
   const [walletId, setWalletId] = useState("");
   const [nearAccount, setNearAccount] = useState<Account | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFunding, setIsFunding] = useState(false);
   const [accountExistsOnChain, setAccountExistsOnChain] = useState<boolean | null>(null);
   const autoCreateAttemptedRef = useRef(false);
   const autoFundRequestedRef = useRef(false);
@@ -93,10 +97,11 @@ export function NearProvider({ children }: { children: ReactNode }) {
     if (walletId) await checkAccountExists(walletId);
   }, [walletId, checkAccountExists]);
 
-  /** Request one-time auto-fund from our API when the implicit account does not exist on-chain. */
+  /** Request one-time auto-fund from relayer/faucet API so the account exists on-chain. */
   const requestAutoFund = useCallback(async (accountId: string) => {
     if (autoFundRequestedRef.current) return;
     autoFundRequestedRef.current = true;
+    setIsFunding(true);
     try {
       const res = await fetch("/api/near/fund", {
         method: "POST",
@@ -118,6 +123,8 @@ export function NearProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.warn("[NearContext] Auto-fund request error:", e);
       autoFundRequestedRef.current = false;
+    } finally {
+      setIsFunding(false);
     }
   }, [checkAccountExists]);
 
@@ -176,9 +183,11 @@ export function NearProvider({ children }: { children: ReactNode }) {
     checkAccountExists(accountId);
   }, [authenticated, user, signRawHash, checkAccountExists]);
 
-  // When we have a wallet and we've determined it doesn't exist on-chain, trigger one-time auto-fund
+  // As soon as we have a wallet, trigger relayer/faucet once (so new accounts activate without user action)
   useEffect(() => {
-    if (!walletId || accountExistsOnChain !== false) return;
+    if (!walletId) return;
+    // Trigger when we don't know yet (null) or we know the account doesn't exist (false)
+    if (accountExistsOnChain === true) return;
     requestAutoFund(walletId);
   }, [walletId, accountExistsOnChain, requestAutoFund]);
 
@@ -187,12 +196,13 @@ export function NearProvider({ children }: { children: ReactNode }) {
       walletId,
       nearAccount,
       isLoading,
+      isFunding,
       accountExistsOnChain,
       createNearWallet,
       refreshAccountExists,
       provider,
     }),
-    [walletId, nearAccount, isLoading, accountExistsOnChain, createNearWallet, refreshAccountExists]
+    [walletId, nearAccount, isLoading, isFunding, accountExistsOnChain, createNearWallet, refreshAccountExists]
   );
 
   return (

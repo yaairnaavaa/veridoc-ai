@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePrivy, useLogin, useLoginWithOAuth } from "@privy-io/react-auth";
 import { LogOut, Copy, Fingerprint, Mail, Wallet } from "lucide-react";
 import { useNEAR } from "@/context/NearContext";
-import { getVerifierBalance, formatUsdtBalance } from "@/lib/near-intents";
+import { getUsdtBalance, formatUsdtBalance } from "@/lib/near-usdt";
 
 /** Same style as "Continue with Google" – bordered card with icon + label */
 const loginButtonClass =
@@ -71,7 +71,7 @@ export function HomeLogin({
     }
     let cancelled = false;
     setBalanceLoading(true);
-    getVerifierBalance(walletId)
+    getUsdtBalance(walletId)
       .then((raw) => {
         if (!cancelled) setUsdtBalance(formatUsdtBalance(raw));
       })
@@ -180,14 +180,6 @@ export function HomeLogin({
             title="USDT en NEAR Intents"
           >
             {balanceDisplay}
-          </span>
-        )}
-        {walletId && (
-          <span
-            className="max-w-[140px] truncate rounded-md bg-slate-100/80 px-2 py-1 text-xs font-mono text-slate-600"
-            title={walletId}
-          >
-            {walletId.length > 16 ? `${walletId.slice(0, 8)}…${walletId.slice(-6)}` : walletId}
           </span>
         )}
         {!showNearWallet && !nearLoading && (

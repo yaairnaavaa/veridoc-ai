@@ -19,6 +19,10 @@ export interface ISpecialistProfile {
   pricePerSession: number;
   currency: string;
   image?: string; // <--- Campo opcional para la foto
+  /** URL en Cloudinary del documento de título (imagen o PDF) */
+  titleDocumentUrl?: string;
+  /** URL en Cloudinary de la cédula (imagen o PDF) */
+  cedulaUrl?: string;
   availability: IAvailability[];
   rating: number;
   reviewCount: number;
@@ -57,6 +61,8 @@ const SpecialistProfileSchema = new Schema<ISpecialistProfile>({
   
   // Campo de imagen del especialista
   image: { type: String, required: false },
+  titleDocumentUrl: { type: String, required: false },
+  cedulaUrl: { type: String, required: false },
 
   availability: [AvailabilitySchema],
   

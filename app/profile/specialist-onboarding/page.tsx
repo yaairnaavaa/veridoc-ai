@@ -8,12 +8,10 @@ import { useState, useEffect } from "react";
 export default function SpecialistOnboardingPage() {
   const [randomWallet, setRandomWallet] = useState("");
 
-  // Función para generar ID
   const generateNewId = () => {
     setRandomWallet(`test-user-${Math.floor(Math.random() * 100000)}`);
   };
 
-  // Generar el primero al cargar
   useEffect(() => {
     generateNewId();
   }, []);
@@ -33,10 +31,10 @@ export default function SpecialistOnboardingPage() {
           <div className="text-center mb-8 space-y-2">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-200/60 bg-teal-50/50 px-3 py-1 text-xs font-medium text-teal-700 backdrop-blur">
               <ShieldCheck className="w-3 h-3" />
-              Alta de Especialistas
+              Specialist Onboarding
             </span>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-              Registrar Nuevo Especialista
+              Register New Specialist
             </h1>
             
           </div>
@@ -44,9 +42,9 @@ export default function SpecialistOnboardingPage() {
           <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-8 shadow-sm backdrop-blur">
              {randomWallet && (
                <SpecialistOnboardingForm 
-                  key={randomWallet} // La clave hace que React reinicie el componente al cambiar el ID
+                  key={randomWallet}
                   userWallet={randomWallet} 
-                  onSuccess={generateNewId} // ¡Aquí ocurre la magia automática!
+                  onSuccess={generateNewId}
                />
              )}
           </div>

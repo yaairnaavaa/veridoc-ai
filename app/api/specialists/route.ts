@@ -1,16 +1,7 @@
-// app/api/specialists/route.ts (Ejemplo conceptual)
-import User from "@/lib/models/User";
-import dbConnect from "@/lib/mongodb";
+import { getSpecialistsFromApi } from "@/app/marketplace/specialists";
 
-export async function GET(request: Request) {
-  await dbConnect();
-
-  const specialists = await User.find({
-    "specialistProfile.status": "published", // Solo perfiles públicos
-    // "specialistProfile.isVerified": true // (Opcional) Solo verificados
-  })
-  .select("name image specialistProfile") // Projection: Trae solo lo necesario
-  .lean(); // Rendimiento: Objetos JS planos, no documentos Mongoose pesados
-
+/** GET /api/specialists — proxies to external verification API and returns list as UiSpecialist[]. */
+export async function GET() {
+  const specialists = await getSpecialistsFromApi();
   return Response.json(specialists);
 }

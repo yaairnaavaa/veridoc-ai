@@ -2,10 +2,10 @@
 
 import { usePrivy } from "@privy-io/react-auth";
 import { useSignRawHash } from "@privy-io/react-auth/extended-chains";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { NavBar } from "@/components/NavBar";
-import { Coins, Loader2, User, ShieldCheck, CreditCard } from "lucide-react";
+import { Coins, Loader2, User, ShieldCheck, CreditCard, ExternalLink, Copy, Check, ChevronDown, Stethoscope, X, Image as ImageIcon, FileCheck, IdCard } from "lucide-react";
 import Link from "next/link";
 import { useNEAR } from "@/context/NearContext";
 import {
@@ -18,7 +18,23 @@ import {
 } from "@/lib/near-intents";
 import { processCrossChainWithdrawal, getRouteConfigForNetwork, USDT_WITHDRAW_SUPPORTED_NETWORK_IDS } from "@/lib/near-intents-withdraw";
 import { DEPOSIT_NETWORKS, type DepositNetworkId, NEAR_NETWORK, MIN_NEAR_TO_CREATE_IMPLICIT, NEAR_TESTNET_FAUCET_URL, isValidNearAccountId, normalizeNearAccountId } from "@/lib/near-config";
-import { ExternalLink, Copy, Check, ChevronDown } from "lucide-react";
+import { uploadSpecialistFilesToCloudinary } from "@/app/actions/specialist";
+
+type SpecialistProfile = {
+  professionalTitle?: string;
+  specialty?: string;
+  biography?: string;
+  yearsOfExperience?: number;
+  consultationPrice?: number;
+  languages?: string[];
+  profileImageUrl?: string;
+  licenseDocumentUrl?: string;
+  degreeDocumentUrl?: string;
+  status?: string;
+  nearAddress?: string;
+  privyWallet?: string;
+  _id?: string;
+};
 
 const USDT_LOGO_URL =
   "https://assets.coingecko.com/coins/images/325/small/Tether.png";
@@ -26,8 +42,8 @@ const USDT_LOGO_URL =
 type ProfileTabId = "profile" | "verified" | "balance";
 
 const TABS: { id: ProfileTabId; label: string; shortLabel?: string; icon: typeof User }[] = [
-  { id: "profile", label: "Profile", shortLabel: "Profile", icon: User },
-  { id: "verified", label: "Verified specialists", shortLabel: "Specialists", icon: ShieldCheck },
+  { id: "profile", label: "Account", shortLabel: "Account", icon: User },
+  { id: "verified", label: "Verified Profile", shortLabel: "Verified", icon: ShieldCheck },
   { id: "balance", label: "Payments & balance", shortLabel: "Payments", icon: CreditCard },
 ];
 
@@ -48,6 +64,7 @@ export default function ProfilePage() {
   const { ready, authenticated, user } = usePrivy();
   const { signRawHash } = useSignRawHash();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { walletId, nearAccount, isLoading: nearLoading, createNearWallet, provider, accountExistsOnChain, refreshAccountExists } = useNEAR();
   const [copiedFundAddress, setCopiedFundAddress] = useState(false);
   const [usdtBalance, setUsdtBalance] = useState<string | null>(null);
@@ -66,6 +83,55 @@ export default function ProfilePage() {
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [withdrawNetworkOpen, setWithdrawNetworkOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ProfileTabId>("profile");
+
+  const tabParam = searchParams.get("tab");
+  useEffect(() => {
+    if (tabParam === "verified" || tabParam === "balance" || tabParam === "profile") {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+  const [specialistProfile, setSpecialistProfile] = useState<SpecialistProfile | null>(null);
+  const [specialistLoading, setSpecialistLoading] = useState(false);
+  const [updateModalOpen, setUpdateModalOpen] = useState(false);
+  const [updateSaving, setUpdateSaving] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [updateImageName, setUpdateImageName] = useState<string | null>(null);
+  const [updateLicenseName, setUpdateLicenseName] = useState<string | null>(null);
+  const [updateDegreeName, setUpdateDegreeName] = useState<string | null>(null);
+
+  const privyWallet = user?.wallet?.address ?? null;
+
+  const refreshSpecialistProfile = useCallback(() => {
+    if (!privyWallet) return;
+    setSpecialistLoading(true);
+    fetch(`/api/specialists/${encodeURIComponent(privyWallet)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setSpecialistProfile(data?.data ?? data ?? null))
+      .catch(() => setSpecialistProfile(null))
+      .finally(() => setSpecialistLoading(false));
+  }, [privyWallet]);
+
+  useEffect(() => {
+    if (!privyWallet) {
+      setSpecialistProfile(null);
+      return;
+    }
+    refreshSpecialistProfile();
+  }, [privyWallet, refreshSpecialistProfile]);
+
+  useEffect(() => {
+    if (specialistProfile != null) {
+      console.log("specialistProfile", specialistProfile);
+    }
+  }, [specialistProfile]);
+
+  useEffect(() => {
+    if (updateModalOpen) {
+      setUpdateImageName(null);
+      setUpdateLicenseName(null);
+      setUpdateDegreeName(null);
+    }
+  }, [updateModalOpen]);
 
   useEffect(() => {
     if (!walletId) {
@@ -242,6 +308,76 @@ export default function ProfilePage() {
       setTimeout(() => setCopiedFundAddress(false), 2000);
     });
   }, [walletId]);
+
+  const handleUpdateSpecialistSubmit = useCallback(
+    async (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      if (!privyWallet || !specialistProfile) return;
+      const form = e.currentTarget;
+      const formData = new FormData(form);
+      const professionalTitle = String(formData.get("professionalTitle") ?? "").trim();
+      const specialty = String(formData.get("specialty") ?? "").trim();
+      const biography = String(formData.get("biography") ?? "").trim();
+      const yearsOfExperience = Number(formData.get("yearsOfExperience")) || 0;
+      const consultationPrice = Number(formData.get("consultationPrice")) || 0;
+      const languagesStr = String(formData.get("languages") ?? "").trim();
+      const languages = languagesStr ? languagesStr.split(",").map((s) => s.trim()) : [];
+      const imageFile = formData.get("image") as File | null;
+      const titleDocumentFile = formData.get("titleDocument") as File | null;
+      const cedulaFile = formData.get("cedula") as File | null;
+      const hasNewFiles = (imageFile?.size ?? 0) > 0 || (titleDocumentFile?.size ?? 0) > 0 || (cedulaFile?.size ?? 0) > 0;
+
+      setUpdateError(null);
+      setUpdateSaving(true);
+      try {
+        let profileImageUrl = specialistProfile.profileImageUrl ?? "";
+        let degreeDocumentUrl = specialistProfile.degreeDocumentUrl ?? "";
+        let licenseDocumentUrl = specialistProfile.licenseDocumentUrl ?? "";
+
+        if (hasNewFiles) {
+          const uploadForm = new FormData();
+          if (imageFile?.size) uploadForm.append("image", imageFile);
+          if (titleDocumentFile?.size) uploadForm.append("titleDocument", titleDocumentFile);
+          if (cedulaFile?.size) uploadForm.append("cedula", cedulaFile);
+          const urls = await uploadSpecialistFilesToCloudinary(uploadForm);
+          if (urls.imageUrl) profileImageUrl = urls.imageUrl;
+          if (urls.titleDocumentUrl) degreeDocumentUrl = urls.titleDocumentUrl;
+          if (urls.cedulaUrl) licenseDocumentUrl = urls.cedulaUrl;
+        }
+
+        const payload = {
+          ...specialistProfile,
+          professionalTitle,
+          specialty,
+          biography,
+          yearsOfExperience,
+          consultationPrice,
+          languages,
+          profileImageUrl,
+          degreeDocumentUrl,
+          licenseDocumentUrl,
+        };
+        const res = await fetch(`/api/specialists/${encodeURIComponent(privyWallet)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setUpdateError((data?.message ?? data?.error) || "Failed to update");
+          return;
+        }
+        setSpecialistProfile(data?.data ?? data ?? payload);
+        setUpdateModalOpen(false);
+        refreshSpecialistProfile();
+      } catch {
+        setUpdateError("Failed to update profile");
+      } finally {
+        setUpdateSaving(false);
+      }
+    },
+    [privyWallet, specialistProfile, refreshSpecialistProfile]
+  );
 
   useEffect(() => {
     if (!ready) return;
@@ -432,7 +568,7 @@ export default function ProfilePage() {
                   <ShieldCheck className="h-5 w-5 text-emerald-700 sm:h-6 sm:w-6" aria-hidden />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Verified specialists</h2>
+                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Verified profile</h2>
                   <p className="mt-0.5 text-sm text-slate-500">How we check the experts who give second opinions.</p>
                 </div>
               </div>
@@ -455,16 +591,372 @@ export default function ProfilePage() {
                     <span><strong className="text-slate-700">Listing on the marketplace.</strong> Only approved profiles appear as verified and can receive second-opinion requests.</span>
                   </li>
                 </ul>
-                <p className="mt-5 text-sm text-slate-500">
-                  Want to join as a verified specialist? Sign up and send us your professional details.
-                </p>
-                <Link
-                  href="/profile/specialist-onboarding"
-                  className="mt-3 inline-block text-sm font-medium text-teal-600 hover:text-teal-700 focus:outline-none focus-visible:underline"
-                >
-                  Apply as a specialist →
-                </Link>
               </div>
+
+              {/* Your specialist profile */}
+              {privyWallet && (
+                <div className="mt-6 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-4 shadow-sm sm:px-5 sm:py-5">
+                  <div className="flex items-center gap-2">
+                    <Stethoscope className="h-5 w-5 text-teal-600" aria-hidden />
+                    <h3 className="text-base font-semibold text-slate-900">Your specialist profile</h3>
+                  </div>
+                  {specialistLoading ? (
+                    <p className="mt-3 flex items-center gap-2 text-sm text-slate-500">
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Loading…
+                    </p>
+                  ) : specialistProfile ? (
+                    <div className="mt-4 space-y-4">
+                      <div className="flex gap-4">
+                        {specialistProfile.profileImageUrl ? (
+                          <img
+                            src={specialistProfile.profileImageUrl}
+                            alt=""
+                            className="h-20 w-20 shrink-0 rounded-xl object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-teal-100">
+                            <Stethoscope className="h-8 w-8 text-teal-600" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-slate-900">{specialistProfile.professionalTitle || "Specialist"}</p>
+                          <p className="text-sm text-slate-600">{specialistProfile.specialty}</p>
+                          {specialistProfile.status && (
+                            <span
+                              className={`mt-1.5 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                specialistProfile.status === "Verificado"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-amber-100 text-amber-800"
+                              }`}
+                            >
+                              {specialistProfile.status}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {specialistProfile.biography && (
+                        <p className="text-sm text-slate-600">{specialistProfile.biography}</p>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {specialistProfile.yearsOfExperience != null && (
+                          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800">
+                            {specialistProfile.yearsOfExperience} years of experience
+                          </span>
+                        )}
+                        {specialistProfile.consultationPrice != null && specialistProfile.consultationPrice > 0 && (
+                          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800">
+                            ${specialistProfile.consultationPrice} per session
+                          </span>
+                        )}
+                        {specialistProfile.languages?.length ? (
+                          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800">
+                            {specialistProfile.languages.join(", ")}
+                          </span>
+                        ) : null}
+                      </div>
+                      {(specialistProfile.licenseDocumentUrl || specialistProfile.degreeDocumentUrl) && (
+                        <div className="flex flex-wrap gap-2">
+                          {specialistProfile.licenseDocumentUrl && (
+                            <a
+                              href={specialistProfile.licenseDocumentUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-3.5 py-1.5 text-sm font-medium text-teal-700 transition hover:border-teal-300 hover:bg-teal-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              License document
+                            </a>
+                          )}
+                          {specialistProfile.degreeDocumentUrl && (
+                            <a
+                              href={specialistProfile.degreeDocumentUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-3.5 py-1.5 text-sm font-medium text-teal-700 transition hover:border-teal-300 hover:bg-teal-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              Degree document
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-500">
+                      You are not registered as a specialist yet.
+                    </p>
+                  )}
+                  {!specialistLoading && (
+                    <>
+                      {specialistProfile ? (
+                        <button
+                          type="button"
+                          onClick={() => setUpdateModalOpen(true)}
+                          className="mt-4 inline-block text-sm font-medium text-teal-600 hover:text-teal-700 focus:outline-none focus-visible:underline"
+                        >
+                          Update specialist profile
+                        </button>
+                      ) : (
+                        <Link
+                          href="/profile/specialist-onboarding"
+                          className="mt-4 inline-block text-sm font-medium text-teal-600 hover:text-teal-700 focus:outline-none focus-visible:underline"
+                        >
+                          Apply as a specialist →
+                        </Link>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Update specialist modal */}
+              {updateModalOpen && specialistProfile && privyWallet && (
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="update-specialist-title"
+                >
+                  <div
+                    className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+                    onClick={() => !updateSaving && setUpdateModalOpen(false)}
+                    aria-hidden
+                  />
+                  <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+                    <div className="flex items-center justify-between gap-4">
+                      <h2 id="update-specialist-title" className="text-lg font-semibold text-slate-900">
+                        Update specialist profile
+                      </h2>
+                      <button
+                        type="button"
+                        onClick={() => !updateSaving && setUpdateModalOpen(false)}
+                        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                        aria-label="Close"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                    <form onSubmit={handleUpdateSpecialistSubmit} className="mt-4 space-y-4">
+                      <div>
+                        <label htmlFor="update-professionalTitle" className="block text-sm font-medium text-slate-700">
+                          Professional title
+                        </label>
+                        <input
+                          id="update-professionalTitle"
+                          name="professionalTitle"
+                          type="text"
+                          defaultValue={specialistProfile.professionalTitle ?? ""}
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-teal-500"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="update-specialty" className="block text-sm font-medium text-slate-700">
+                          Specialty
+                        </label>
+                        <input
+                          id="update-specialty"
+                          name="specialty"
+                          type="text"
+                          defaultValue={specialistProfile.specialty ?? ""}
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-teal-500"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="update-biography" className="block text-sm font-medium text-slate-700">
+                          Biography
+                        </label>
+                        <textarea
+                          id="update-biography"
+                          name="biography"
+                          rows={3}
+                          defaultValue={specialistProfile.biography ?? ""}
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-teal-500"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label htmlFor="update-yearsOfExperience" className="block text-sm font-medium text-slate-700">
+                            Years of experience
+                          </label>
+                          <input
+                            id="update-yearsOfExperience"
+                            name="yearsOfExperience"
+                            type="number"
+                            min={0}
+                            defaultValue={specialistProfile.yearsOfExperience ?? 0}
+                            className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-teal-500"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="update-consultationPrice" className="block text-sm font-medium text-slate-700">
+                            Consultation price ($)
+                          </label>
+                          <input
+                            id="update-consultationPrice"
+                            name="consultationPrice"
+                            type="number"
+                            min={0}
+                            defaultValue={specialistProfile.consultationPrice ?? 0}
+                            className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-teal-500"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label htmlFor="update-languages" className="block text-sm font-medium text-slate-700">
+                          Languages (comma-separated)
+                        </label>
+                        <input
+                          id="update-languages"
+                          name="languages"
+                          type="text"
+                          defaultValue={specialistProfile.languages?.join(", ") ?? ""}
+                          placeholder="English, Spanish"
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-teal-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700">Profile image</label>
+                        <div className="mt-1 flex items-center gap-4">
+                          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+                            {specialistProfile.profileImageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={specialistProfile.profileImageUrl}
+                                alt=""
+                                className="h-full w-full object-cover"
+                                id="update-image-preview"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-slate-400">
+                                <ImageIcon className="h-8 w-8" />
+                              </div>
+                            )}
+                          </div>
+                          <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                            Change photo
+                            <input
+                              type="file"
+                              name="image"
+                              accept="image/png,image/jpeg,image/webp,image/jpg"
+                              className="sr-only"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                const img = document.getElementById("update-image-preview") as HTMLImageElement | null;
+                                if (file && img) {
+                                  img.src = URL.createObjectURL(file);
+                                  img.alt = "";
+                                }
+                                setUpdateImageName(file?.name ?? null);
+                              }}
+                            />
+                          </label>
+                        </div>
+                        {updateImageName && (
+                          <p className="mt-1.5 flex items-center gap-1.5 text-sm text-emerald-600">
+                            <Check className="h-4 w-4 shrink-0" />
+                            Loaded: {updateImageName}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700">
+                          <IdCard className="inline h-4 w-4 align-text-bottom" /> License document
+                        </label>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          {specialistProfile.licenseDocumentUrl && (
+                            <a
+                              href={specialistProfile.licenseDocumentUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-medium text-teal-600 hover:text-teal-700"
+                            >
+                              Current document →
+                            </a>
+                          )}
+                          <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                            {specialistProfile.licenseDocumentUrl ? "Replace file" : "Upload file"}
+                            <input
+                              type="file"
+                              name="cedula"
+                              accept="image/png,image/jpeg,image/webp,image/jpg,application/pdf"
+                              className="sr-only"
+                              onChange={(e) => setUpdateLicenseName(e.target.files?.[0]?.name ?? null)}
+                            />
+                          </label>
+                        </div>
+                        {updateLicenseName && (
+                          <p className="mt-1.5 flex items-center gap-1.5 text-sm text-emerald-600">
+                            <Check className="h-4 w-4 shrink-0" />
+                            Loaded: {updateLicenseName}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700">
+                          <FileCheck className="inline h-4 w-4 align-text-bottom" /> Degree document
+                        </label>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          {specialistProfile.degreeDocumentUrl && (
+                            <a
+                              href={specialistProfile.degreeDocumentUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-medium text-teal-600 hover:text-teal-700"
+                            >
+                              Current document →
+                            </a>
+                          )}
+                          <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                            {specialistProfile.degreeDocumentUrl ? "Replace file" : "Upload file"}
+                            <input
+                              type="file"
+                              name="titleDocument"
+                              accept="image/png,image/jpeg,image/webp,image/jpg,application/pdf"
+                              className="sr-only"
+                              onChange={(e) => setUpdateDegreeName(e.target.files?.[0]?.name ?? null)}
+                            />
+                          </label>
+                        </div>
+                        {updateDegreeName && (
+                          <p className="mt-1.5 flex items-center gap-1.5 text-sm text-emerald-600">
+                            <Check className="h-4 w-4 shrink-0" />
+                            Loaded: {updateDegreeName}
+                          </p>
+                        )}
+                      </div>
+                      {updateError && (
+                        <p className="text-sm font-medium text-red-600" role="alert">
+                          {updateError}
+                        </p>
+                      )}
+                      <div className="flex justify-end gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setUpdateModalOpen(false)}
+                          disabled={updateSaving}
+                          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={updateSaving}
+                          className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 disabled:opacity-50"
+                        >
+                          {updateSaving ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                              Saving…
+                            </>
+                          ) : (
+                            "Save changes"
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
             </section>
           )}
 

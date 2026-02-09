@@ -106,6 +106,12 @@ export async function POST(request: NextRequest) {
   }
 
   // Option B: our own relayer (faucet account)
+  if (!faucetAccountId || !faucetPrivateKey) {
+    return NextResponse.json(
+      { error: "NEAR funding not configured (faucet credentials missing)." },
+      { status: 503 }
+    );
+  }
   try {
     const signer = KeyPairSigner.fromSecretKey(faucetPrivateKey as KeyPairString);
     const provider = new JsonRpcProvider({ url: NEAR_RPC_URL });

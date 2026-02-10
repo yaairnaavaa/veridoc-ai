@@ -13,10 +13,12 @@ interface CheckResult {
   message: string;
   latencyMs?: number;
   required?: boolean;
+  envVars?: string[];
 }
 
 async function checkMongoDB(): Promise<CheckResult> {
   const start = Date.now();
+  const envVars = ["MONGODB_URI"];
   try {
     if (!process.env.MONGODB_URI) {
       return {
@@ -24,6 +26,7 @@ async function checkMongoDB(): Promise<CheckResult> {
         status: "unconfigured",
         message: "MONGODB_URI no está configurada",
         required: true,
+        envVars,
       };
     }
     const conn = await dbConnect();
@@ -35,6 +38,7 @@ async function checkMongoDB(): Promise<CheckResult> {
         message: "No se pudo obtener la instancia de la base de datos",
         latencyMs: Date.now() - start,
         required: true,
+        envVars,
       };
     }
     await db.admin().command({ ping: 1 });
@@ -44,6 +48,7 @@ async function checkMongoDB(): Promise<CheckResult> {
       message: `Conectado (${conn.connection.name})`,
       latencyMs: Date.now() - start,
       required: true,
+      envVars,
     };
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Error desconocido";
@@ -53,11 +58,13 @@ async function checkMongoDB(): Promise<CheckResult> {
       message: msg,
       latencyMs: Date.now() - start,
       required: true,
+      envVars,
     };
   }
 }
 
 async function checkPrivy(): Promise<CheckResult> {
+  const envVars = ["NEXT_PUBLIC_PRIVY_APP_ID"];
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
   if (!appId || appId.trim() === "") {
     return {
@@ -65,6 +72,7 @@ async function checkPrivy(): Promise<CheckResult> {
       status: "unconfigured",
       message: "NEXT_PUBLIC_PRIVY_APP_ID no está configurada. Necesaria para login y wallets.",
       required: true,
+      envVars,
     };
   }
   return {
@@ -72,11 +80,13 @@ async function checkPrivy(): Promise<CheckResult> {
     status: "ok",
     message: "App ID configurada (login y wallets)",
     required: true,
+    envVars,
   };
 }
 
 async function checkNearRpc(): Promise<CheckResult> {
   const start = Date.now();
+  const envVars = ["NEXT_PUBLIC_NEAR_NETWORK"];
   try {
     const res = await fetch(NEAR_RPC_URL, {
       method: "POST",
@@ -94,9 +104,10 @@ async function checkNearRpc(): Promise<CheckResult> {
       return {
         name: "NEAR RPC",
         status: "ok",
-        message: `${NEAR_NETWORK} — nodo accesible`,
+        message: `${NEAR_NETWORK} — nodo accesible (${NEAR_RPC_URL})`,
         latencyMs,
         required: true,
+        envVars,
       };
     }
     return {
@@ -105,6 +116,7 @@ async function checkNearRpc(): Promise<CheckResult> {
       message: data.error?.message ?? `RPC respondió sin sync_info: ${res.status}`,
       latencyMs,
       required: true,
+      envVars,
     };
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Error de conexión";
@@ -114,11 +126,13 @@ async function checkNearRpc(): Promise<CheckResult> {
       message: msg,
       latencyMs: Date.now() - start,
       required: true,
+      envVars,
     };
   }
 }
 
 async function checkNearFunding(): Promise<CheckResult> {
+  const envVars = ["NEAR_FAUCET_ACCOUNT_ID", "NEAR_FAUCET_PRIVATE_KEY", "NEAR_TESTNET_FAUCET_API_URL"];
   const faucetAccountId = process.env.NEAR_FAUCET_ACCOUNT_ID;
   const faucetPrivateKey = process.env.NEAR_FAUCET_PRIVATE_KEY;
   const testnetFaucetUrl = process.env.NEAR_TESTNET_FAUCET_API_URL;
@@ -130,6 +144,7 @@ async function checkNearFunding(): Promise<CheckResult> {
       status: "ok",
       message: "Cuenta faucet configurada para financiar cuentas implícitas",
       required: false,
+      envVars,
     };
   }
   if (hasExternalTestnet) {
@@ -138,6 +153,7 @@ async function checkNearFunding(): Promise<CheckResult> {
       status: "ok",
       message: "Faucet externo configurado (NEAR_TESTNET_FAUCET_API_URL)",
       required: false,
+      envVars,
     };
   }
   return {
@@ -146,10 +162,12 @@ async function checkNearFunding(): Promise<CheckResult> {
     message:
       "Configura NEAR_FAUCET_ACCOUNT_ID y NEAR_FAUCET_PRIVATE_KEY, o (solo testnet) NEAR_TESTNET_FAUCET_API_URL para que los usuarios puedan activar su cuenta.",
     required: false,
+    envVars,
   };
 }
 
 async function checkNearRelay(): Promise<CheckResult> {
+  const envVars = ["NEAR_RELAYER_ACCOUNT_ID", "NEAR_RELAYER_PRIVATE_KEY", "NEXT_PUBLIC_NEAR_RELAYER_ACCOUNT_ID"];
   const relayerAccountId = process.env.NEAR_RELAYER_ACCOUNT_ID ?? process.env.NEXT_PUBLIC_NEAR_RELAYER_ACCOUNT_ID;
   const relayerPrivateKey = process.env.NEAR_RELAYER_PRIVATE_KEY;
   if (!relayerAccountId || !relayerPrivateKey) {
@@ -158,13 +176,15 @@ async function checkNearRelay(): Promise<CheckResult> {
       status: "unconfigured",
       message: "NEAR_RELAYER_ACCOUNT_ID y NEAR_RELAYER_PRIVATE_KEY necesarios para retiros USDT",
       required: false,
+      envVars,
     };
   }
   return {
     name: "NEAR relay (withdraw)",
     status: "ok",
-    message: "Relayer configurado para retiros",
+    message: `Relayer configurado para retiros (${relayerAccountId})`,
     required: false,
+    envVars,
   };
 }
 
@@ -182,12 +202,14 @@ async function checkLlamaCloud(): Promise<CheckResult> {
   const start = Date.now();
   const key = process.env.LLAMA_CLOUD_API_KEY;
   const serviceName = "LlamaParse";
+  const envVars = ["LLAMA_CLOUD_API_KEY"];
   if (!key) {
     return {
       name: serviceName,
       status: "unconfigured",
       message: "LLAMA_CLOUD_API_KEY no está configurada (análisis de PDFs)",
       required: true,
+      envVars,
     };
   }
   try {
@@ -210,6 +232,7 @@ async function checkLlamaCloud(): Promise<CheckResult> {
           : "Servicio respondió correctamente.",
         latencyMs,
         required: true,
+        envVars,
       };
     }
     const errBody = await res.text();
@@ -227,6 +250,7 @@ async function checkLlamaCloud(): Promise<CheckResult> {
         message: `API key inválida o sin permisos: ${detail}`,
         latencyMs,
         required: true,
+        envVars,
       };
     }
     return {
@@ -235,6 +259,7 @@ async function checkLlamaCloud(): Promise<CheckResult> {
       message: `Error ${res.status} desde LlamaParse: ${detail}`,
       latencyMs,
       required: true,
+      envVars,
     };
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Error desconocido";
@@ -244,6 +269,7 @@ async function checkLlamaCloud(): Promise<CheckResult> {
       message: `No se pudo conectar con LlamaParse (¿firewall/red en producción?): ${msg}`,
       latencyMs: Date.now() - start,
       required: true,
+      envVars,
     };
   }
 }
@@ -251,12 +277,14 @@ async function checkLlamaCloud(): Promise<CheckResult> {
 async function checkNearAI(): Promise<CheckResult> {
   const start = Date.now();
   const key = process.env.NEAR_AI_API_KEY;
+  const envVars = ["NEAR_AI_API_KEY"];
   if (!key) {
     return {
       name: "NEAR AI",
       status: "unconfigured",
       message: "NEAR_AI_API_KEY no está configurada (análisis con IA)",
       required: true,
+      envVars,
     };
   }
   try {
@@ -280,6 +308,7 @@ async function checkNearAI(): Promise<CheckResult> {
         message: "API key válida, servicio disponible",
         latencyMs,
         required: true,
+        envVars,
       };
     }
     const body = await res.json().catch(() => ({}));
@@ -291,6 +320,7 @@ async function checkNearAI(): Promise<CheckResult> {
         message: `API key inválida o sin permisos: ${detail}`,
         latencyMs,
         required: true,
+        envVars,
       };
     }
     return {
@@ -299,6 +329,7 @@ async function checkNearAI(): Promise<CheckResult> {
       message: `${res.status}: ${detail}`,
       latencyMs,
       required: true,
+      envVars,
     };
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Error de conexión";
@@ -308,11 +339,13 @@ async function checkNearAI(): Promise<CheckResult> {
       message: msg,
       latencyMs: Date.now() - start,
       required: true,
+      envVars,
     };
   }
 }
 
 function checkCloudinary(): CheckResult {
+  const envVars = ["CLOUDINARY_URL", "NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"];
   const url = process.env.CLOUDINARY_URL;
   if (url?.startsWith("cloudinary://")) {
     try {
@@ -326,6 +359,7 @@ function checkCloudinary(): CheckResult {
           status: "ok",
           message: "CLOUDINARY_URL configurada (fotos y documentos de especialistas)",
           required: false,
+          envVars,
         };
       }
     } catch {
@@ -341,6 +375,7 @@ function checkCloudinary(): CheckResult {
       status: "ok",
       message: "Variables de Cloudinary configuradas",
       required: false,
+      envVars,
     };
   }
   return {
@@ -349,10 +384,33 @@ function checkCloudinary(): CheckResult {
     message:
       "CLOUDINARY_URL o (NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME + CLOUDINARY_API_KEY + CLOUDINARY_API_SECRET) para subir fotos y documentos de especialistas",
     required: false,
+    envVars,
+  };
+}
+
+function checkNearIntentsSolver(): CheckResult {
+  const envVars = ["NEXT_PUBLIC_NEAR_INTENTS_SOLVER_RELAY_API_KEY"];
+  const key = process.env.NEXT_PUBLIC_NEAR_INTENTS_SOLVER_RELAY_API_KEY;
+  if (!key || key.trim() === "") {
+    return {
+      name: "NEAR Intents Solver Relay",
+      status: "unconfigured",
+      message: 'NEXT_PUBLIC_NEAR_INTENTS_SOLVER_RELAY_API_KEY no configurada. Puede causar errores "base58" en retiros POA.',
+      required: false,
+      envVars,
+    };
+  }
+  return {
+    name: "NEAR Intents Solver Relay",
+    status: "ok",
+    message: "API key del solver relay configurada (retiros POA)",
+    required: false,
+    envVars,
   };
 }
 
 async function checkSpecialistVerificationApi(): Promise<CheckResult> {
+  const envVars = ["SPECIALIST_VERIFICATION_API_URL"];
   const baseUrl = process.env.SPECIALIST_VERIFICATION_API_URL?.replace(/\/$/, "");
   if (!baseUrl) {
     return {
@@ -360,6 +418,7 @@ async function checkSpecialistVerificationApi(): Promise<CheckResult> {
       status: "unconfigured",
       message: "SPECIALIST_VERIFICATION_API_URL no configurada. Marketplace y perfiles de especialistas usan la API interna si no está definida.",
       required: false,
+      envVars,
     };
   }
   const start = Date.now();
@@ -374,6 +433,7 @@ async function checkSpecialistVerificationApi(): Promise<CheckResult> {
         message: "Servicio externo accesible",
         latencyMs,
         required: false,
+        envVars,
       };
     }
     // 404 = servicio up pero sin endpoint /api/status; lo consideramos accesible
@@ -384,6 +444,7 @@ async function checkSpecialistVerificationApi(): Promise<CheckResult> {
         message: "Origen accesible (sin endpoint /api/status)",
         latencyMs,
         required: false,
+        envVars,
       };
     }
     return {
@@ -392,6 +453,7 @@ async function checkSpecialistVerificationApi(): Promise<CheckResult> {
       message: `${res.status} — el endpoint externo no respondió correctamente`,
       latencyMs,
       required: false,
+      envVars,
     };
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Error de conexión";
@@ -401,6 +463,7 @@ async function checkSpecialistVerificationApi(): Promise<CheckResult> {
       message: msg,
       latencyMs: Date.now() - start,
       required: false,
+      envVars,
     };
   }
 }
@@ -415,6 +478,7 @@ export async function GET() {
     llama,
     nearAI,
     cloudinary,
+    nearIntents,
     specialistApi,
   ] = await Promise.all([
     checkMongoDB(),
@@ -425,12 +489,12 @@ export async function GET() {
     checkLlamaCloud(),
     checkNearAI(),
     Promise.resolve(checkCloudinary()),
+    Promise.resolve(checkNearIntentsSolver()),
     checkSpecialistVerificationApi(),
   ]);
 
-  const checks = [mongo, privy, nearRpc, nearFunding, nearRelay, llama, nearAI, cloudinary, specialistApi];
+  const checks = [mongo, privy, nearRpc, nearFunding, nearRelay, llama, nearAI, cloudinary, nearIntents, specialistApi];
   const requiredChecks = checks.filter((c) => c.required !== false);
-  const optionalChecks = checks.filter((c) => c.required === false);
   const allRequiredOk = requiredChecks.every((c) => c.status === "ok");
   const anyRequiredError = requiredChecks.some((c) => c.status === "error");
   const anyRequiredUnconfigured = requiredChecks.some((c) => c.status === "unconfigured");
@@ -438,12 +502,24 @@ export async function GET() {
 
   let status: "healthy" | "degraded" | "unhealthy" = "healthy";
   if (anyRequiredError) status = "unhealthy";
-  else if (!allRequiredOk || anyRequiredUnconfigured) status = "degraded";
+  else if (!allRequiredOk || anyRequiredUnconfigured) status = "unhealthy";
   else if (anyUnconfigured) status = "degraded";
+
+  const counts = {
+    ok: checks.filter((c) => c.status === "ok").length,
+    error: checks.filter((c) => c.status === "error").length,
+    unconfigured: checks.filter((c) => c.status === "unconfigured").length,
+    total: checks.length,
+  };
 
   return NextResponse.json({
     status,
     timestamp: new Date().toISOString(),
+    environment: {
+      nearNetwork: NEAR_NETWORK,
+      nodeEnv: process.env.NODE_ENV ?? "unknown",
+    },
+    counts,
     services: checks,
   });
 }

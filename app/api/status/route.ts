@@ -5,6 +5,11 @@ import { NEAR_NETWORK, NEAR_RPC_URL } from "@/lib/near-config";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+/** Max time (ms) for any single external request. */
+const FETCH_TIMEOUT_MS = 7_000;
+/** Max time (ms) for the entire GET handler before returning partial results. */
+const GLOBAL_TIMEOUT_MS = 15_000;
+
 type ServiceStatus = "ok" | "error" | "unconfigured";
 
 interface CheckResult {
@@ -14,6 +19,47 @@ interface CheckResult {
   latencyMs?: number;
   required?: boolean;
   envVars?: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** fetch() with an AbortController timeout so it never hangs forever. */
+function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit & { timeoutMs?: number },
+): Promise<Response> {
+  const ms = init?.timeoutMs ?? FETCH_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(input, { ...init, signal: controller.signal }).finally(() =>
+    clearTimeout(timer),
+  );
+}
+
+/** Wrap any async check so it resolves to an error result on timeout. */
+function withTimeout(
+  promise: Promise<CheckResult>,
+  fallbackName: string,
+  ms = FETCH_TIMEOUT_MS,
+): Promise<CheckResult> {
+  return Promise.race([
+    promise,
+    new Promise<CheckResult>((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            name: fallbackName,
+            status: "error",
+            message: `Timeout (${ms / 1000}s) — el servicio no respondió a tiempo`,
+            latencyMs: ms,
+            required: true,
+          }),
+        ms,
+      ),
+    ),
+  ]);
 }
 
 async function checkMongoDB(): Promise<CheckResult> {
@@ -88,7 +134,7 @@ async function checkNearRpc(): Promise<CheckResult> {
   const start = Date.now();
   const envVars = ["NEXT_PUBLIC_NEAR_NETWORK"];
   try {
-    const res = await fetch(NEAR_RPC_URL, {
+    const res = await fetchWithTimeout(NEAR_RPC_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -119,7 +165,10 @@ async function checkNearRpc(): Promise<CheckResult> {
       envVars,
     };
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Error de conexión";
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    const msg = isTimeout
+      ? "Timeout — el nodo RPC no respondió a tiempo"
+      : error instanceof Error ? error.message : "Error de conexión";
     return {
       name: "NEAR RPC",
       status: "error",
@@ -215,7 +264,7 @@ async function checkLlamaCloud(): Promise<CheckResult> {
   try {
     const form = new FormData();
     form.append("file", new Blob([MINIMAL_PDF], { type: "application/pdf" }), "status-check.pdf");
-    const res = await fetch(`${LLAMA_API_URL}/upload`, {
+    const res = await fetchWithTimeout(`${LLAMA_API_URL}/upload`, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}` },
       body: form,
@@ -262,11 +311,14 @@ async function checkLlamaCloud(): Promise<CheckResult> {
       envVars,
     };
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Error desconocido";
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    const msg = isTimeout
+      ? "Timeout — LlamaParse no respondió a tiempo"
+      : error instanceof Error ? error.message : "Error desconocido";
     return {
       name: serviceName,
       status: "error",
-      message: `No se pudo conectar con LlamaParse (¿firewall/red en producción?): ${msg}`,
+      message: isTimeout ? msg : `No se pudo conectar con LlamaParse (¿firewall/red en producción?): ${msg}`,
       latencyMs: Date.now() - start,
       required: true,
       envVars,
@@ -288,17 +340,13 @@ async function checkNearAI(): Promise<CheckResult> {
     };
   }
   try {
-    const res = await fetch("https://cloud-api.near.ai/v1/chat/completions", {
-      method: "POST",
+    // Use /v1/models (GET, lightweight) instead of chat/completions to avoid
+    // model-loading latency that causes 504s in production.
+    const res = await fetchWithTimeout("https://cloud-api.near.ai/v1/models", {
+      method: "GET",
       headers: {
-        "Content-Type": "application/json",
         Authorization: `Bearer ${key}`,
       },
-      body: JSON.stringify({
-        model: "openai/gpt-oss-120b",
-        messages: [{ role: "user", content: "Hi" }],
-        max_tokens: 1,
-      }),
     });
     const latencyMs = Date.now() - start;
     if (res.ok) {
@@ -332,7 +380,10 @@ async function checkNearAI(): Promise<CheckResult> {
       envVars,
     };
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Error de conexión";
+    const msg = error instanceof Error ? error.message
+      : (error as { name?: string })?.name === "AbortError"
+        ? "Timeout — el servicio no respondió a tiempo"
+        : "Error de conexión";
     return {
       name: "NEAR AI",
       status: "error",
@@ -424,7 +475,7 @@ async function checkSpecialistVerificationApi(): Promise<CheckResult> {
   const start = Date.now();
   try {
     // Solo comprobamos que el origen responda (GET al base URL o /api/status si existe)
-    const res = await fetch(`${baseUrl}/api/status`, { method: "GET" });
+    const res = await fetchWithTimeout(`${baseUrl}/api/status`, { method: "GET" });
     const latencyMs = Date.now() - start;
     if (res.ok) {
       return {
@@ -456,7 +507,10 @@ async function checkSpecialistVerificationApi(): Promise<CheckResult> {
       envVars,
     };
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Error de conexión";
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    const msg = isTimeout
+      ? "Timeout — el servicio externo no respondió a tiempo"
+      : error instanceof Error ? error.message : "Error de conexión";
     return {
       name: "API verificación especialistas",
       status: "error",
@@ -468,7 +522,7 @@ async function checkSpecialistVerificationApi(): Promise<CheckResult> {
   }
 }
 
-export async function GET() {
+async function runAllChecks() {
   const [
     mongo,
     privy,
@@ -481,19 +535,22 @@ export async function GET() {
     nearIntents,
     specialistApi,
   ] = await Promise.all([
-    checkMongoDB(),
-    checkPrivy(),
-    checkNearRpc(),
-    checkNearFunding(),
-    checkNearRelay(),
-    checkLlamaCloud(),
-    checkNearAI(),
-    Promise.resolve(checkCloudinary()),
-    Promise.resolve(checkNearIntentsSolver()),
-    checkSpecialistVerificationApi(),
+    withTimeout(checkMongoDB(), "MongoDB"),
+    checkPrivy(),                                   // sync-ish, no network
+    withTimeout(checkNearRpc(), "NEAR RPC"),
+    checkNearFunding(),                             // sync, no network
+    checkNearRelay(),                               // sync, no network
+    withTimeout(checkLlamaCloud(), "LlamaParse"),
+    withTimeout(checkNearAI(), "NEAR AI"),
+    Promise.resolve(checkCloudinary()),             // sync
+    Promise.resolve(checkNearIntentsSolver()),       // sync
+    withTimeout(checkSpecialistVerificationApi(), "API verificación especialistas", FETCH_TIMEOUT_MS),
   ]);
 
-  const checks = [mongo, privy, nearRpc, nearFunding, nearRelay, llama, nearAI, cloudinary, nearIntents, specialistApi];
+  return [mongo, privy, nearRpc, nearFunding, nearRelay, llama, nearAI, cloudinary, nearIntents, specialistApi];
+}
+
+function buildResponse(checks: CheckResult[]) {
   const requiredChecks = checks.filter((c) => c.required !== false);
   const allRequiredOk = requiredChecks.every((c) => c.status === "ok");
   const anyRequiredError = requiredChecks.some((c) => c.status === "error");
@@ -522,4 +579,40 @@ export async function GET() {
     counts,
     services: checks,
   });
+}
+
+export async function GET() {
+  // Global safety net: if all checks together exceed GLOBAL_TIMEOUT_MS,
+  // return whatever we have so the gateway never returns 504.
+  const result = await Promise.race([
+    runAllChecks(),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), GLOBAL_TIMEOUT_MS)),
+  ]);
+
+  if (result) {
+    return buildResponse(result);
+  }
+
+  // Global timeout hit — return a minimal error response so the page still renders.
+  return NextResponse.json(
+    {
+      status: "unhealthy" as const,
+      timestamp: new Date().toISOString(),
+      environment: {
+        nearNetwork: NEAR_NETWORK,
+        nodeEnv: process.env.NODE_ENV ?? "unknown",
+      },
+      counts: { ok: 0, error: 1, unconfigured: 0, total: 1 },
+      services: [
+        {
+          name: "Status check",
+          status: "error" as const,
+          message: `Los checks no terminaron en ${GLOBAL_TIMEOUT_MS / 1000}s. Puede haber un servicio externo caído o lento. Reintenta en unos segundos.`,
+          latencyMs: GLOBAL_TIMEOUT_MS,
+          required: true,
+        },
+      ],
+    },
+    { status: 200 }, // 200 so the frontend can still parse and show the message
+  );
 }

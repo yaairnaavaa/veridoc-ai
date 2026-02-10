@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import dbConnect from "@/lib/mongodb";
 import { NEAR_NETWORK, NEAR_RPC_URL } from "@/lib/near-config";
 
 export const dynamic = "force-dynamic";
@@ -60,53 +59,6 @@ function withTimeout(
       ),
     ),
   ]);
-}
-
-async function checkMongoDB(): Promise<CheckResult> {
-  const start = Date.now();
-  const envVars = ["MONGODB_URI"];
-  try {
-    if (!process.env.MONGODB_URI) {
-      return {
-        name: "MongoDB",
-        status: "unconfigured",
-        message: "MONGODB_URI no está configurada",
-        required: true,
-        envVars,
-      };
-    }
-    const conn = await dbConnect();
-    const db = conn.connection.db;
-    if (!db) {
-      return {
-        name: "MongoDB",
-        status: "error",
-        message: "No se pudo obtener la instancia de la base de datos",
-        latencyMs: Date.now() - start,
-        required: true,
-        envVars,
-      };
-    }
-    await db.admin().command({ ping: 1 });
-    return {
-      name: "MongoDB",
-      status: "ok",
-      message: `Conectado (${conn.connection.name})`,
-      latencyMs: Date.now() - start,
-      required: true,
-      envVars,
-    };
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Error desconocido";
-    return {
-      name: "MongoDB",
-      status: "error",
-      message: msg,
-      latencyMs: Date.now() - start,
-      required: true,
-      envVars,
-    };
-  }
 }
 
 async function checkPrivy(): Promise<CheckResult> {
@@ -524,7 +476,6 @@ async function checkSpecialistVerificationApi(): Promise<CheckResult> {
 
 async function runAllChecks() {
   const [
-    mongo,
     privy,
     nearRpc,
     nearFunding,
@@ -535,7 +486,6 @@ async function runAllChecks() {
     nearIntents,
     specialistApi,
   ] = await Promise.all([
-    withTimeout(checkMongoDB(), "MongoDB"),
     checkPrivy(),                                   // sync-ish, no network
     withTimeout(checkNearRpc(), "NEAR RPC"),
     checkNearFunding(),                             // sync, no network
@@ -547,7 +497,7 @@ async function runAllChecks() {
     withTimeout(checkSpecialistVerificationApi(), "API verificación especialistas", FETCH_TIMEOUT_MS),
   ]);
 
-  return [mongo, privy, nearRpc, nearFunding, nearRelay, llama, nearAI, cloudinary, nearIntents, specialistApi];
+  return [privy, nearRpc, nearFunding, nearRelay, llama, nearAI, cloudinary, nearIntents, specialistApi];
 }
 
 function buildResponse(checks: CheckResult[]) {

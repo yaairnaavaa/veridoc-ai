@@ -1,6 +1,3 @@
-import dbConnect from "@/lib/mongodb";
-import User from "@/lib/models/User";
-
 /** Specialist verification status from the API. Only these two values are used. */
 export type SpecialistStatus = "Verified" | "Under Review";
 
@@ -97,51 +94,6 @@ export async function getSpecialistsFromApi(): Promise<UiSpecialist[]> {
   }
 }
 
-export function mapUserToSpecialist(user: { _id: unknown; name?: string; image?: string; specialistProfile?: Record<string, unknown> | unknown }): UiSpecialist {
-  const profile = (user.specialistProfile || {}) as Record<string, unknown>;
-  const nextSlot =
-    profile.availability && Array.isArray(profile.availability) && profile.availability.length > 0
-      ? `${(profile.availability[0] as { day?: string }).day}, ${((profile.availability[0] as { slots?: string[] }).slots?.[0] ?? "—")}`
-      : "Consultar";
-  const displayImage =
-    (profile.image as string) ||
-    (user.image as string) ||
-    `https://i.pravatar.cc/150?u=${user._id}`;
-  const status = normalizeStatus(profile.status as string | undefined);
-  return {
-    id: String(user._id),
-    name: (profile.title as string) || (user.name as string) || "Specialist",
-    specialty: (profile.specialty as string) || "Blood panel review",
-    rating: (profile.rating as number) ?? 5.0,
-    reviews: (profile.reviewCount as number) ?? 0,
-    experience: (profile.experienceYears as number) ?? 0,
-    languages: (profile.languages as string[]) ?? [],
-    tags: profile.certifications ? (profile.certifications as string[]).slice(0, 3) : [],
-    priceUsdt: (profile.pricePerSession as number) ?? 0,
-    availability: nextSlot,
-    image: displayImage,
-    location: "Online",
-    verified: (profile.isVerified as boolean) ?? (status === "Verified" || status === "Under Review"),
-    status,
-    isMock: false,
-    licenseDocumentUrl: profile.licenseDocumentUrl as string | undefined,
-    degreeDocumentUrl: profile.degreeDocumentUrl as string | undefined,
-  };
-}
-
-export async function getSpecialistsFromDb(): Promise<UiSpecialist[]> {
-  try {
-    await dbConnect();
-    const users = await User.find({ "specialistProfile.status": "published" })
-      .select("name image specialistProfile")
-      .lean();
-    return users.map((u) => mapUserToSpecialist(u));
-  } catch (e) {
-    console.warn("Marketplace: MongoDB unavailable, showing only mock/local data.", e);
-    return [];
-  }
-}
-
 /** Fetches one specialist by id from the external API (GET /api/specialists/:id). */
 export async function getSpecialistByIdFromApi(id: string): Promise<UiSpecialist | null> {
   const baseUrl = process.env.SPECIALIST_VERIFICATION_API_URL;
@@ -178,16 +130,7 @@ export async function getSpecialistByIdentifierFromApi(identifier: string): Prom
   }
 }
 
+/** Fetches one specialist by id (alias for getSpecialistByIdFromApi). */
 export async function getSpecialistById(id: string): Promise<UiSpecialist | null> {
-  const fromApi = await getSpecialistByIdFromApi(id);
-  if (fromApi) return fromApi;
-  try {
-    await dbConnect();
-    const user = await User.findById(id).select("name image specialistProfile").lean();
-    if (!user) return null;
-    return mapUserToSpecialist(user);
-  } catch (e) {
-    console.warn("Marketplace: MongoDB unavailable for specialist detail.", e);
-    return null;
-  }
+  return getSpecialistByIdFromApi(id);
 }

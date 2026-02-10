@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useState, useRef, ChangeEvent } from "react";
+import { useEffect, useState, useRef, ChangeEvent } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useNEAR } from "@/context/NearContext";
-import { updateSpecialistProfile, uploadSpecialistFilesToCloudinary, saveSpecialistToApi } from "@/app/actions/specialist";
+import { uploadSpecialistFilesToCloudinary, saveSpecialistToApi } from "@/app/actions/specialist";
 import { User, Clock, Globe, Award, DollarSign, CheckCircle, Camera, Image as ImageIcon, FileCheck, IdCard, XCircle, ChevronDown, Search } from "lucide-react";
 
 const SPECIALTIES = [
@@ -46,21 +46,15 @@ export function SpecialistOnboardingForm({
   userWallet: string;
   onSuccess?: () => void;
 }) {
-  const updateProfileWithId = updateSpecialistProfile.bind(null, userWallet);
-  const { ready, authenticated, user } = usePrivy();
+  const { user } = usePrivy();
   const { walletId } = useNEAR();
-
-  const [state, formAction, isPending] = useActionState(updateProfileWithId, {
-    success: false,
-    message: "",
-    errors: {},
-  });
 
   // PREVIEW STATE
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [titleDocName, setTitleDocName] = useState<string | null>(null);
   const [cedulaFileName, setCedulaFileName] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [success, setSuccess] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [specialtyOpen, setSpecialtyOpen] = useState(false);
@@ -92,16 +86,17 @@ export function SpecialistOnboardingForm({
   }, [toast]);
 
   useEffect(() => {
-    if (state.success && onSuccess) {
+    if (success && onSuccess) {
       const timer = setTimeout(() => {
         onSuccess();
         setPreviewUrl(null);
         setTitleDocName(null);
         setCedulaFileName(null);
+        setSuccess(false);
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [state.success, onSuccess]);
+  }, [success, onSuccess]);
 
   const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -207,6 +202,7 @@ export function SpecialistOnboardingForm({
       const result = await saveSpecialistToApi(document);
       if (result.ok) {
         setToast({ message: "Information saved successfully", type: "success" });
+        setSuccess(true);
       } else {
         setToast({
           message: (result.error ?? (result.status ? `Error ${result.status}` : "Error saving to the API.")) || "Error saving to the API.",
@@ -220,7 +216,7 @@ export function SpecialistOnboardingForm({
 
   const inputClassName = "w-full rounded-xl border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:border-teal-500 focus:ring-teal-500 placeholder:text-slate-400";
 
-  if (state.success) {
+  if (success) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center animate-in zoom-in duration-300">
         <div className="rounded-full bg-green-100 p-4 mb-4">
@@ -307,7 +303,6 @@ export function SpecialistOnboardingForm({
               placeholder="Ex: Dr. John Doe" 
               className={inputClassName}
             />
-            {state.errors?.title && <p className="text-red-500 text-xs">{state.errors.title}</p>}
           </div>
 
           <div className="space-y-2">
@@ -369,7 +364,6 @@ export function SpecialistOnboardingForm({
                 </ul>
               )}
             </div>
-            {state.errors?.specialty && <p className="text-red-500 text-xs">{state.errors.specialty}</p>}
           </div>
         </div>
 
@@ -465,16 +459,11 @@ export function SpecialistOnboardingForm({
       <div className="pt-4">
         <button 
           type="submit" 
-          disabled={isPending || uploading}
+          disabled={uploading}
           className="w-full flex items-center justify-center gap-2 rounded-full bg-slate-900 px-8 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-800 active:scale-95 disabled:opacity-50"
         >
-          {uploading ? "Uploading to Cloudinary…" : isPending ? "Saving..." : "Save Profile"}
+          {uploading ? "Uploading to Cloudinary…" : "Save Profile"}
         </button>
-        {state.message && !state.success && (
-          <div className="mt-4 rounded-lg bg-red-50 p-3 text-center text-sm font-medium text-red-700">
-            {state.message}
-          </div>
-        )}
       </div>
     </form>
     </>

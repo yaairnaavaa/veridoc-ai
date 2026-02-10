@@ -4,13 +4,13 @@ En local usas el archivo `.env`, pero **ese archivo no se sube a Git** (está en
 
 ## Por qué en producción no se detectan (build vs runtime)
 
-En Amplify, las variables que configuras en la consola están disponibles **solo durante el build**, no en el **runtime** del servidor (SSR, API routes, Server Actions). Por eso en producción `process.env.MONGODB_URI` etc. pueden salir `undefined` aunque las tengas definidas en Amplify.
+En Amplify, las variables que configuras en la consola están disponibles **solo durante el build**, no en el **runtime** del servidor (SSR, API routes, Server Actions). Por eso en producción `process.env.LLAMA_CLOUD_API_KEY` etc. pueden salir `undefined` aunque las tengas definidas en Amplify.
 
 Para que Next.js las use en runtime, el `amplify.yml` escribe esas variables en `.env.production` **antes** de `npm run build`, así Next.js puede cargarlas cuando la app recibe tráfico. No hace falta que hagas nada más si las variables están ya en Amplify.
 
 ## Por qué funciona en local y no en producción (resumen)
 
-- **Local**: Next.js lee `MONGODB_URI`, `LLAMA_CLOUD_API_KEY`, `NEAR_AI_API_KEY` desde `.env`.
+- **Local**: Next.js lee las variables desde `.env`.
 - **Producción (Amplify)**: Debes definirlas en Environment variables de Amplify **y** el build debe escribirlas en `.env.production` (eso lo hace ya el `amplify.yml`). Si no están en Amplify, verás "No configurado" en /status.
 
 ## Cómo configurarlas en Amplify
@@ -19,17 +19,19 @@ Para que Next.js las use en runtime, el `amplify.yml` escribe esas variables en 
 2. En el menú izquierdo: **Hosting** → **Environment variables** (o **App settings** → **Environment variables**).
 3. Añade cada variable con el **mismo nombre** que en tu `.env`:
 
-   | Nombre                 | Descripción                          | Ejemplo (no uses estos valores literales) |
-   |------------------------|--------------------------------------|-------------------------------------------|
-   | `MONGODB_URI`          | URI de MongoDB (Atlas o servidor)   | `mongodb+srv://user:pass@cluster.mongodb.net/veridoc` |
-   | `LLAMA_CLOUD_API_KEY`  | API key de LlamaParse / Llama Cloud | `llx-...`                                 |
-   | `NEAR_AI_API_KEY`      | API key de NEAR AI                  | `sk-...`                                  |
+   | Nombre                              | Descripción                              | Requerida |
+   |-------------------------------------|------------------------------------------|-----------|
+   | `NEXT_PUBLIC_PRIVY_APP_ID`          | App ID de Privy (login y wallets)       | Sí        |
+   | `LLAMA_CLOUD_API_KEY`               | API key de LlamaParse / Llama Cloud     | Sí        |
+   | `NEAR_AI_API_KEY`                   | API key de NEAR AI                      | Sí        |
+   | `SPECIALIST_VERIFICATION_API_URL`   | URL del API de verificación de especialistas | Opcional  |
+   | `CLOUDINARY_URL`                    | URL de Cloudinary (fotos y docs)        | Opcional  |
 
 4. Guarda los cambios. Amplify **redespliega** la app para que las variables se apliquen (puede tardar unos minutos).
 
 ## Comprobar que está bien
 
 - Abre en producción la ruta **/status**.
-- Si todo está configurado correctamente, MongoDB, LlamaParse y NEAR AI deberían aparecer como **Operativo**.
+- Si todo está configurado correctamente, los servicios requeridos deberían aparecer como **Operativo**.
 
-Si en producción sigues viendo "LlamaParse: No configurado" o "LLAMA_CLOUD_API_KEY no está configurada", la causa es que esa variable no está definida (o está mal escrita) en Environment variables de Amplify.
+Si en producción sigues viendo "LlamaParse: No configurado" o "NEAR_AI_API_KEY no está configurada", la causa es que esa variable no está definida (o está mal escrita) en Environment variables de Amplify.

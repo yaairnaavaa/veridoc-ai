@@ -23,8 +23,6 @@
     "llama-parse": "^0.1.0",
     "llamaindex": "^0.12.1",
     "lucide-react": "^0.563.0",
-    "mongodb": "^7.0.0",
-    "mongoose": "^9.1.5",
     "next": "16.1.6",
     "pdf2json": "^4.0.2",
     "pdfjs-dist": "^5.4.530",

@@ -10,6 +10,7 @@ interface ServiceCheck {
   status: ServiceStatus;
   message: string;
   latencyMs?: number;
+  required?: boolean;
 }
 
 interface StatusResponse {
@@ -105,10 +106,13 @@ export default function StatusPage() {
 
   const overallLabel =
     data.status === "healthy"
-      ? "Todos los servicios operativos"
+      ? "Todo lo necesario para correr la app está operativo"
       : data.status === "degraded"
-        ? "Algunos servicios no configurados"
-        : "Hay servicios con errores";
+        ? "Servicios requeridos ok; algunos opcionales no configurados o con error"
+        : "Hay servicios requeridos con error o no configurados";
+
+  const requiredServices = data.services.filter((s) => s.required !== false);
+  const optionalServices = data.services.filter((s) => s.required === false);
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -139,37 +143,73 @@ export default function StatusPage() {
           {overallLabel}
         </p>
 
-        {data.services.some((s) => s.status === "unconfigured") && (
+        {(data.status === "degraded" || data.status === "unhealthy") && (
           <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200">
             <p className="font-medium">¿Estás en producción (Amplify, Vercel, etc.)?</p>
             <p className="mt-1 text-[var(--foreground)]/80">
-              El archivo <code className="rounded bg-[var(--foreground)]/10 px-1">.env</code> no se sube al repositorio. Debes configurar las variables de entorno en la consola de tu hosting. Ver{" "}
+              El archivo <code className="rounded bg-[var(--foreground)]/10 px-1">.env</code> no se sube al repositorio. Configura las variables de entorno en la consola de tu hosting. Ver{" "}
               <code className="rounded bg-[var(--foreground)]/10 px-1">docs/AMPLIFY_ENV.md</code>.
             </p>
           </div>
         )}
 
-        <ul className="space-y-4">
-          {data.services.map((service) => (
-            <li
-              key={service.name}
-              className="rounded-xl border border-[var(--foreground)]/10 bg-[var(--background)] p-4 shadow-sm"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-medium">{service.name}</span>
-                <StatusBadge status={service.status} />
-              </div>
-              <p className="mt-2 text-sm text-[var(--foreground)]/70">
-                {service.message}
-              </p>
-              {service.latencyMs != null && (
-                <p className="mt-1 text-xs text-[var(--foreground)]/50">
-                  Latencia: {service.latencyMs} ms
-                </p>
-              )}
-            </li>
-          ))}
-        </ul>
+        {requiredServices.length > 0 && (
+          <>
+            <h2 className="text-sm font-semibold text-[var(--foreground)]/80 mb-3">
+              Requeridos para correr la app
+            </h2>
+            <ul className="space-y-4 mb-8">
+              {requiredServices.map((service) => (
+                <li
+                  key={service.name}
+                  className="rounded-xl border border-[var(--foreground)]/10 bg-[var(--background)] p-4 shadow-sm"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">{service.name}</span>
+                    <StatusBadge status={service.status} />
+                  </div>
+                  <p className="mt-2 text-sm text-[var(--foreground)]/70">
+                    {service.message}
+                  </p>
+                  {service.latencyMs != null && (
+                    <p className="mt-1 text-xs text-[var(--foreground)]/50">
+                      Latencia: {service.latencyMs} ms
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        {optionalServices.length > 0 && (
+          <>
+            <h2 className="text-sm font-semibold text-[var(--foreground)]/80 mb-3">
+              Opcionales (funciones específicas)
+            </h2>
+            <ul className="space-y-4">
+              {optionalServices.map((service) => (
+                <li
+                  key={service.name}
+                  className="rounded-xl border border-[var(--foreground)]/10 bg-[var(--background)] p-4 shadow-sm"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">{service.name}</span>
+                    <StatusBadge status={service.status} />
+                  </div>
+                  <p className="mt-2 text-sm text-[var(--foreground)]/70">
+                    {service.message}
+                  </p>
+                  {service.latencyMs != null && (
+                    <p className="mt-1 text-xs text-[var(--foreground)]/50">
+                      Latencia: {service.latencyMs} ms
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
 
         <p className="mt-8 text-center">
           <button

@@ -4,9 +4,8 @@ import { getUsdtBalance, formatUsdtBalance, createTransferUsdtAction, parseUsdtA
 
 import { encodeSignedDelegate } from "@near-js/transactions";
 import { usePrivy } from "@privy-io/react-auth";
-import { useSignRawHash } from "@privy-io/react-auth/extended-chains";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
 import { NavBar } from "@/components/NavBar";
 import { Coins, Loader2, User, ShieldCheck, CreditCard, RefreshCw, ExternalLink, Copy, Check, ChevronDown, Stethoscope, X, Image as ImageIcon, FileCheck, IdCard } from "lucide-react";
 import Link from "next/link";
@@ -57,7 +56,7 @@ function getUserDisplayName(user: {
   return user.id ? `User ${user.id.slice(0, 8)}…` : "Your account";
 }
 
-export default function ProfilePage() {
+function ProfilePageContent() {
   const { ready, authenticated, user } = usePrivy();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1060,5 +1059,24 @@ export default function ProfilePage() {
         </main>
       </div>
     </div>
+  );
+}
+
+function ProfileLoading() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#f6fbfb] px-4">
+      <div className="flex flex-col items-center gap-3">
+        <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-teal-500" aria-hidden />
+        <p className="text-sm text-slate-500">Loading…</p>
+      </div>
+    </div>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={<ProfileLoading />}>
+      <ProfilePageContent />
+    </Suspense>
   );
 }

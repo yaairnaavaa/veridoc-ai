@@ -61,7 +61,8 @@ export async function uploadToCloudinary(
   const signature = crypto.createHash("sha1").update(toSign + apiSecret).digest("hex");
 
   const formData = new FormData();
-  formData.append("file", new Blob([file], { type: mimeType }), originalName);
+  // Buffer.buffer is ArrayBufferLike; Blob expects BlobPart (ArrayBuffer). Use a copy.
+  formData.append("file", new Blob([new Uint8Array(file)], { type: mimeType }), originalName);
   formData.append("api_key", apiKey);
   formData.append("timestamp", timestamp);
   formData.append("signature", signature);

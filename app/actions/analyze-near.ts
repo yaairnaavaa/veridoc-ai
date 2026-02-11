@@ -175,20 +175,14 @@ const DEBUG_EXTRACTION_PATH = join(process.cwd(), 'debug_extraction.md');
 
 /**
  * Analiza el documento markdown local usando la API de NEAR AI
- * 
+ *
  * Lee el archivo debug_extraction.md, lo envía a NEAR AI y devuelve la respuesta.
- * 
+ * Si se proporciona diagnosisText, se incluye en el prompt para que la IA lo tenga en cuenta.
+ *
+ * @param diagnosisText - Texto opcional con el diagnóstico o notas del paciente (paso 2 del wizard)
  * @returns Resultado del análisis con el contenido de la respuesta o error
- * 
- * @example
- * ```typescript
- * const result = await analyzeWithNearAI();
- * if (result.success) {
- *   console.log(result.content);
- * }
- * ```
  */
-export async function analyzeWithNearAI(): Promise<AnalyzeNearResult> {
+export async function analyzeWithNearAI(diagnosisText?: string): Promise<AnalyzeNearResult> {
   // ✅ VERIFICACIÓN: Validar API Key
   const apiKey = process.env.NEAR_AI_API_KEY;
   if (!apiKey) {
@@ -232,6 +226,9 @@ export async function analyzeWithNearAI(): Promise<AnalyzeNearResult> {
     }
 
     console.log(`✅ Archivo leído exitosamente (${markdownContent.length} caracteres)`);
+    if (diagnosisText?.trim()) {
+      console.log(`📋 Diagnóstico/notas del paciente incluido (${diagnosisText.trim().length} caracteres)`);
+    }
 
     // Paso 2: Construir el payload JSON
     console.log("\n📦 [2/3] Construyendo payload para NEAR AI...");
@@ -241,6 +238,7 @@ export async function analyzeWithNearAI(): Promise<AnalyzeNearResult> {
 You are a Medical Assistant expert in interpreting clinical and lab results.
 Analyze the patient document and respond ONLY with a valid JSON object, no text before or after.
 Write all content in English.
+When the user provides "Patient diagnosis or notes", use that context to tailor your summary, key items, next steps, and questions (e.g. relate lab findings to the given diagnosis, suggest follow-up that aligns with it).
 
 RULES:
 - Do NOT describe the document (e.g. "the document has a header"). Get to the point.
@@ -267,6 +265,11 @@ Respond with ONLY the JSON, no \`\`\` or explanations.
 - Use \\n for line breaks inside long strings (e.g. extraInfo).
 `;
 
+    const diagnosisBlock = diagnosisText?.trim()
+      ? `Patient diagnosis or notes:\n\n${diagnosisText.trim()}\n\n---\n\nLab document:\n\n`
+      : "";
+    const userContent = `${diagnosisBlock}${diagnosisBlock ? "" : "Analiza el siguiente documento:\n\n"}${markdownContent}`;
+
     const payload = {
       model: MODEL_ID,
       messages: [
@@ -276,7 +279,7 @@ Respond with ONLY the JSON, no \`\`\` or explanations.
         },
         {
           role: "user",
-          content: `Analiza el siguiente documento:\n\n${markdownContent}`
+          content: userContent
         }
       ],
       temperature: 0.3,

@@ -4,11 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
 import { analyzeMedicalRecord } from "@/app/actions/analyze-medical-record";
 
- const ACCEPTED_TYPES = [
-   "application/pdf",
-   "image/png",
-   "image/jpeg",
- ];
+const PDF_MIME = "application/pdf";
 
  type StepUploadLabsProps = {
    labsFile: File | null;
@@ -39,12 +35,6 @@ import { analyzeMedicalRecord } from "@/app/actions/analyze-medical-record";
   const [isLoading, setIsLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<{
     success: boolean;
-    analysis?: {
-      is_medical_record?: boolean;
-      summary?: string;
-      detected_diagnosis?: string;
-      missing_info_warnings?: string[];
-    };
     message?: string;
   } | null>(null);
 
@@ -67,7 +57,7 @@ import { analyzeMedicalRecord } from "@/app/actions/analyze-medical-record";
 
   // When the file comes from the landing (initialLabsFile), run extraction here; in-step selection runs it in handleFile
   useEffect(() => {
-    if (!labsFile || labsFile.type !== "application/pdf") return;
+    if (!labsFile || labsFile.type !== PDF_MIME) return;
     if (analyzedFileRef.current === labsFile) return;
     if (isLoading || analysisResult?.success) return;
 
@@ -100,8 +90,8 @@ import { analyzeMedicalRecord } from "@/app/actions/analyze-medical-record";
   }, [labsFile]);
 
    const validateFile = (file: File) => {
-     if (!ACCEPTED_TYPES.includes(file.type)) {
-       return "Please upload a PDF or image file (PNG, JPG, JPEG).";
+     if (file.type !== PDF_MIME) {
+       return "Only PDF files are accepted. Please upload your lab report as a PDF.";
      }
      if (file.size > maxBytes) {
        return `File is too large. Max size is ${formatBytes(maxBytes)}.`;
@@ -120,7 +110,7 @@ import { analyzeMedicalRecord } from "@/app/actions/analyze-medical-record";
     setAnalysisResult(null);
     onFileSelect(file);
 
-    if (file.type === "application/pdf") {
+    if (file.type === PDF_MIME) {
       analyzedFileRef.current = file;
       setIsLoading(true);
       try {
@@ -162,21 +152,18 @@ import { analyzeMedicalRecord } from "@/app/actions/analyze-medical-record";
      }
    };
 
-  const isPdf = labsFile?.type === "application/pdf";
-  const canContinue =
-    labsFile != null &&
-    (labsFile.type !== "application/pdf" || (analysisResult?.success === true));
+  const isPdf = labsFile?.type === PDF_MIME;
+  const canContinue = labsFile != null && analysisResult?.success === true;
 
   return (
     <section className="grid gap-6 pb-24 sm:pb-0">
       <div className="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm backdrop-blur sm:p-6">
          <div className="flex flex-col gap-3">
           <h2 className="text-xl font-semibold text-slate-900">
-             Upload your labs
+             Upload your lab report (PDF)
            </h2>
            <p className="text-sm text-slate-600">
-            Tap to add your lab report. Drag &amp; drop is optional on desktop.
-            Accepted formats: PDF, PNG, JPG, JPEG. Max {formatBytes(maxBytes)}.
+            Tap or drag and drop your lab report. PDF only. Max {formatBytes(maxBytes)}.
            </p>
          </div>
 
@@ -205,12 +192,12 @@ import { analyzeMedicalRecord } from "@/app/actions/analyze-medical-record";
            <input
              ref={inputRef}
              type="file"
-             accept={ACCEPTED_TYPES.join(",")}
+             accept={PDF_MIME}
              onChange={handleInputChange}
              className="hidden"
            />
            <p className="text-sm font-medium text-slate-700">
-            Drop your lab file here
+            Drop your PDF lab report here
            </p>
            <p className="mt-2 text-xs text-slate-500">or</p>
            <button
@@ -242,58 +229,18 @@ import { analyzeMedicalRecord } from "@/app/actions/analyze-medical-record";
                 Reading your file…
               </p>
               <p className="text-xs text-teal-600 max-w-sm">
-                Extracting text from the PDF. This may take 1–2 minutes for long or complex documents.
+                Extracting text from the PDF. This may take 1–2 minutes for long documents. If it fails, we'll try up to 2 times automatically.
               </p>
             </div>
             <p className="text-xs text-teal-500">Please don’t close this page.</p>
           </div>
         ) : null}
 
-        {/* Resultados del análisis */}
-        {analysisResult?.success && analysisResult.analysis && labsFile ? (
-          <div className="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-white/80 p-4">
-            {analysisResult.analysis.is_medical_record === false ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                <p className="font-semibold">⚠️ Documento no válido</p>
-                <p className="mt-1 text-xs">Este archivo no parece ser un documento médico válido.</p>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-start gap-3">
-                  <div className="flex-1">
-                    <h3 className="text-sm font-semibold text-slate-900">Análisis del documento</h3>
-                    {analysisResult.analysis.summary && (
-                      <p className="mt-2 text-sm text-slate-700">
-                        {analysisResult.analysis.summary}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {analysisResult.analysis.detected_diagnosis && (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <p className="text-xs font-semibold text-slate-600">Diagnóstico detectado:</p>
-                    <p className="mt-1 text-sm font-medium text-slate-900">
-                      {analysisResult.analysis.detected_diagnosis}
-                    </p>
-                  </div>
-                )}
-
-                {analysisResult.analysis.missing_info_warnings && 
-                 analysisResult.analysis.missing_info_warnings.length > 0 && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                    <p className="text-xs font-semibold text-amber-800">Advertencias:</p>
-                    <ul className="mt-2 space-y-1">
-                      {analysisResult.analysis.missing_info_warnings.map((warning, index) => (
-                        <li key={index} className="text-sm text-amber-700">
-                          • {warning}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </>
-            )}
+        {/* PDF leído correctamente */}
+        {analysisResult?.success && labsFile ? (
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            <p className="font-semibold">PDF read successfully</p>
+            <p className="mt-1 text-xs">Text was extracted from your lab report. You can continue to the next step.</p>
           </div>
         ) : null}
 

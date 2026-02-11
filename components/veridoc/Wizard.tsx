@@ -18,7 +18,6 @@ type WizardState = {
   step: Step;
   labsFile: File | null;
   diagnosisMode: DiagnosisMode;
-  diagnosisFile: File | null;
   diagnosisText: string;
   /** Set when user goes to step 4 (second opinion); used for marketplace link */
   lastSavedAnalysisId: string | null;
@@ -28,7 +27,6 @@ type WizardAction =
   | { type: "setStep"; step: Step }
   | { type: "setLabsFile"; file: File | null }
   | { type: "setDiagnosisMode"; mode: DiagnosisMode }
-  | { type: "setDiagnosisFile"; file: File | null }
   | { type: "setDiagnosisText"; text: string }
   | { type: "setLastSavedAnalysisId"; id: string | null }
   | { type: "clearSession" };
@@ -37,7 +35,6 @@ const initialState: WizardState = {
   step: 1,
   labsFile: null,
   diagnosisMode: "none",
-  diagnosisFile: null,
   diagnosisText: "",
   lastSavedAnalysisId: null,
 };
@@ -52,11 +49,8 @@ const reducer = (state: WizardState, action: WizardAction): WizardState => {
       return {
         ...state,
         diagnosisMode: action.mode,
-        diagnosisFile: action.mode === "file" ? state.diagnosisFile : null,
         diagnosisText: action.mode === "text" ? state.diagnosisText : "",
       };
-    case "setDiagnosisFile":
-      return { ...state, diagnosisFile: action.file };
     case "setDiagnosisText":
       return { ...state, diagnosisText: action.text };
     case "setLastSavedAnalysisId":
@@ -231,18 +225,9 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
             {state.step === 2 ? (
               <StepDiagnosis
                 diagnosisMode={state.diagnosisMode}
-                diagnosisFile={state.diagnosisFile}
                 diagnosisText={state.diagnosisText}
-                maxBytes={MAX_FILE_BYTES}
-                formatBytes={formatBytes}
                 onModeChange={(mode) =>
                   dispatch({ type: "setDiagnosisMode", mode })
-                }
-                onFileSelect={(file) =>
-                  dispatch({ type: "setDiagnosisFile", file })
-                }
-                onClearFile={() =>
-                  dispatch({ type: "setDiagnosisFile", file: null })
                 }
                 onTextChange={(text) =>
                   dispatch({ type: "setDiagnosisText", text })
@@ -256,7 +241,6 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
               <StepResults
                 labsFile={state.labsFile}
                 diagnosisMode={state.diagnosisMode}
-                diagnosisFile={state.diagnosisFile}
                 diagnosisText={state.diagnosisText}
                 formatBytes={formatBytes}
                 onBack={() => dispatch({ type: "setStep", step: 2 })}

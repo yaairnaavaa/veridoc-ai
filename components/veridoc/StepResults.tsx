@@ -10,7 +10,6 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
  type StepResultsProps = {
    labsFile: File;
    diagnosisMode: DiagnosisMode;
-   diagnosisFile: File | null;
    diagnosisText: string;
    formatBytes: (bytes: number) => string;
    onStartOver: () => void;
@@ -22,7 +21,6 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
  export const StepResults = ({
    labsFile,
    diagnosisMode,
-   diagnosisFile,
    diagnosisText,
    formatBytes,
    onStartOver,
@@ -37,13 +35,16 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
      error?: string;
    } | null>(null);
 
+   const diagnosisForAI =
+     diagnosisMode === "text" && diagnosisText?.trim() ? diagnosisText.trim() : undefined;
+
    useEffect(() => {
      let cancelled = false;
      (async () => {
        setNearLoading(true);
        setNearResult(null);
        try {
-         const response = await analyzeWithNearAI();
+         const response = await analyzeWithNearAI(diagnosisForAI);
          if (!cancelled) setNearResult(response);
        } catch (err: unknown) {
          if (!cancelled) {
@@ -57,17 +58,16 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
        }
      })();
      return () => { cancelled = true; };
-   }, []);
+   }, [diagnosisForAI]);
 
    const localReport = useMemo(
      () =>
        generateLocalRecommendation({
          labsFile,
          diagnosisMode,
-         diagnosisFile,
          diagnosisText,
        }),
-     [labsFile, diagnosisMode, diagnosisFile, diagnosisText],
+     [labsFile, diagnosisMode, diagnosisText],
    );
 
    type DisplayReport = typeof localReport & { extraInfo?: string };
@@ -153,11 +153,7 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
    };
 
    const diagnosisLabel =
-     diagnosisMode === "file"
-       ? diagnosisFile?.name || "Diagnosis file"
-       : diagnosisMode === "text"
-         ? "Diagnosis notes"
-         : "No diagnosis";
+     diagnosisMode === "text" ? "Diagnosis notes" : "No diagnosis";
 
   return (
     <section className="grid gap-6 pb-24 sm:pb-0">

@@ -1,4 +1,4 @@
-export type DiagnosisMode = "file" | "text" | "none";
+export type DiagnosisMode = "text" | "none";
 
 export type RecommendationReport = {
   summary: string;
@@ -11,17 +11,11 @@ export type RecommendationReport = {
 type InferenceInput = {
   labsFile: File;
   diagnosisMode: DiagnosisMode;
-  diagnosisFile?: File | null;
   diagnosisText?: string;
 };
 
 const describeFileType = (file: File) => {
-  if (file.type === "application/pdf") {
-    return "PDF document";
-  }
-  if (file.type.startsWith("image/")) {
-    return "image";
-  }
+  if (file.type === "application/pdf") return "PDF document";
   return "file";
 };
 
@@ -30,14 +24,9 @@ export const generateLocalRecommendation = (
 ): RecommendationReport => {
   const labsDescriptor = describeFileType(input.labsFile);
   const diagnosisProvided =
-    (input.diagnosisMode === "file" && Boolean(input.diagnosisFile)) ||
-    (input.diagnosisMode === "text" && Boolean(input.diagnosisText?.trim()));
+    input.diagnosisMode === "text" && Boolean(input.diagnosisText?.trim());
   const diagnosisDescriptor =
-    input.diagnosisMode === "file"
-      ? "a diagnosis file"
-      : input.diagnosisMode === "text"
-        ? "written diagnosis notes"
-        : "no diagnosis";
+    input.diagnosisMode === "text" ? "written diagnosis notes" : "no diagnosis";
 
   const summary = `Your lab upload is a ${labsDescriptor} named "${input.labsFile.name}". We detected ${diagnosisDescriptor}. This mock report highlights items to review and discussion points for a clinician visit, generated entirely on-device.`;
 

@@ -5,6 +5,8 @@ import { join } from "path";
 
 const LLAMA_API_URL = "https://api.cloud.llamaindex.ai/api/parsing";
 
+const PDF_MIME = "application/pdf";
+
 export async function analyzeMedicalRecord(formData: FormData) {
   const file = formData.get('file') as File;
   const llamaKey = process.env.LLAMA_CLOUD_API_KEY;
@@ -12,7 +14,37 @@ export async function analyzeMedicalRecord(formData: FormData) {
   if (!file || !llamaKey) {
     return { success: false, message: 'Faltan archivos o API Key de LlamaParse.' };
   }
+  if (file.type !== PDF_MIME) {
+    return { success: false, message: 'Solo se aceptan archivos PDF. Por favor sube tu reporte de laboratorio en PDF.' };
+  }
 
+  const maxRetries = 2;
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 1) {
+        console.log(`\n🔄 Reintento ${attempt}/${maxRetries} para recuperar el texto del PDF...`);
+      }
+      const result = await runLlamaParsePipeline(file, llamaKey);
+      if (result.success) return result;
+      lastError = new Error(result.message ?? "Error desconocido");
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt === maxRetries) break;
+      console.warn(`Intento ${attempt} fallido. Reintentando...`, lastError.message);
+    }
+  }
+
+  const message = lastError?.message ?? "Error al procesar el PDF.";
+  console.error("Error Pipeline (tras reintentos):", message);
+  return { success: false, message };
+}
+
+async function runLlamaParsePipeline(
+  file: File,
+  llamaKey: string
+): Promise<{ success: true; markdown: string } | { success: false; message?: string }> {
   try {
     console.log("═══════════════════════════════════════════════════");
     console.log("🚀 INICIANDO PROCESO CON LLAMAPARSE");

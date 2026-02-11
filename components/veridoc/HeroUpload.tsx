@@ -5,11 +5,7 @@ import type { ChangeEvent, DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { setPendingLabsFile } from "@/lib/veridoc/sessionStore";
 
-const ACCEPTED_TYPES = [
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-];
+const PDF_MIME = "application/pdf";
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
@@ -32,8 +28,8 @@ export const HeroUpload = () => {
   const [error, setError] = useState<string | null>(null);
 
   const validateFile = (file: File) => {
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      return "Please upload a PDF or image file (PNG, JPG, JPEG).";
+    if (file.type !== PDF_MIME) {
+      return "Please upload a PDF file. Only PDF lab reports are accepted.";
     }
     if (file.size > MAX_FILE_BYTES) {
       return `File is too large. Max size is ${formatBytes(
@@ -89,15 +85,15 @@ export const HeroUpload = () => {
         <input
           ref={inputRef}
           type="file"
-          accept={ACCEPTED_TYPES.join(",")}
+          accept={PDF_MIME}
           onChange={handleInputChange}
           className="hidden"
         />
         <p className="text-sm font-semibold text-slate-800 sm:text-sm">
-          Drag and drop your lab file
+          Drag and drop your lab report (PDF)
         </p>
         <p className="mt-1 text-xs text-slate-500 sm:mt-2">
-          PDF, PNG, JPG, JPEG. Max {formatBytes(MAX_FILE_BYTES)}.
+          PDF only. Max {formatBytes(MAX_FILE_BYTES)}.
         </p>
         <button
           type="button"

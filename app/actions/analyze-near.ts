@@ -108,13 +108,30 @@ function extractBalancedJson(text: string): string {
   return text.slice(start);
 }
 
-/** Cuando JSON.parse falla, intenta extraer campos del texto con regex */
+function unescapeJsonString(s: string): string {
+  return s.replace(/\\n/g, "\n").replace(/\\"/g, '"').trim();
+}
+
+/** Cuando JSON.parse falla (p. ej. respuesta truncada), intenta extraer campos del texto con regex */
 function extractReportFromText(raw: string): NearReport | null {
+  // Summary: primero intentar string cerrado; si no (truncado), capturar hasta fin de contenido
+  let summary = "";
   const summaryMatch = raw.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-  const summary = summaryMatch ? summaryMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"') : "";
+  if (summaryMatch) {
+    summary = unescapeJsonString(summaryMatch[1]);
+  } else {
+    const truncatedSummary = raw.match(/"summary"\s*:\s*"([\s\S]*)$/);
+    if (truncatedSummary) summary = unescapeJsonString(truncatedSummary[1]);
+  }
 
   const extraMatch = raw.match(/"extraInfo"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-  const extraInfo = extraMatch ? extraMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"') : undefined;
+  let extraInfo: string | undefined;
+  if (extraMatch) {
+    extraInfo = unescapeJsonString(extraMatch[1]) || undefined;
+  } else {
+    const truncatedExtra = raw.match(/"extraInfo"\s*:\s*"([\s\S]*)$/);
+    if (truncatedExtra) extraInfo = unescapeJsonString(truncatedExtra[1]) || undefined;
+  }
 
   const keyItems: string[] = [];
   const keyArrMatch = raw.match(/"keyItems"\s*:\s*\[([\s\S]*?)\]/);
@@ -235,34 +252,50 @@ export async function analyzeWithNearAI(diagnosisText?: string): Promise<Analyze
     console.log(`   Modelo: ${MODEL_ID}`);
 
     const SYSTEM_PROMPT = `
-You are a Medical Assistant expert in interpreting clinical and lab results.
-Analyze the patient document and respond ONLY with a valid JSON object, no text before or after.
-Write all content in English.
-When the user provides "Patient diagnosis or notes", use that context to tailor your summary, key items, next steps, and questions (e.g. relate lab findings to the given diagnosis, suggest follow-up that aligns with it).
+You are a Medical Assistant expert in interpreting clinical and lab results. Your task has two phases: VALIDATION and, only when valid, ANALYSIS.
 
-RULES:
+## PHASE 1 – VALIDATION (mandatory)
+
+Before analyzing, you MUST decide if the content is acceptable:
+
+1) **Document**: The main document MUST be a **patient blood/lab analysis** (laboratory results: biomarkers, reference ranges, CBC, chemistry panel, lipids, etc.). Reject and set isRelevantLabReport to false if the document is:
+   - Not medical (invoice, receipt, contract, form, school work, article, recipe, random text).
+   - Medical but not blood/lab results (e.g. imaging report only, prescription only, clinical note without lab values).
+   - Clearly not from a human patient (e.g. veterinary, research data without context).
+
+2) **Diagnosis/notes** (if the user provided "Patient diagnosis or notes"): That text MUST be relevant to a patient's health or clinical context (e.g. diagnosis, symptoms, medical history, current condition). Reject and set isRelevantLabReport to false if it is:
+   - Unrelated (recipe, quote, spam, copy-paste of unrelated content).
+   - Not about the patient or their health.
+
+If either the document or the diagnosis/notes (when provided) is not acceptable, respond with the same JSON structure but set:
+- "isRelevantLabReport": false
+- "rejectionReason": a short message in Spanish for the user (e.g. "Este documento no parece ser un análisis de sangre de un paciente." or "Las notas de diagnóstico no parecen estar relacionadas con la salud del paciente."). Be clear and polite.
+- You may leave summary, keyItems, nextSteps, questions, and extraInfo as empty strings or empty arrays.
+
+## PHASE 2 – ANALYSIS (only when isRelevantLabReport is true)
+
+When the document IS a patient blood/lab analysis and any provided diagnosis/notes ARE relevant:
+- Set "isRelevantLabReport": true
+- Set "rejectionReason": ""
+- Fill summary, keyItems, nextSteps, questions, and extraInfo as below. Write all analysis content in English.
+
+RULES for analysis:
 - Do NOT describe the document (e.g. "the document has a header"). Get to the point.
 - DETECT abnormal values and compare them to reference ranges when available.
 - SYNTHESIZE: group related abnormal values into a logical interpretation.
+- When the user provided "Patient diagnosis or notes", use that context to tailor your summary, key items, next steps, and questions.
 
-Respond with exactly this JSON (use double quotes, escape strings properly):
+Respond with ONLY a valid JSON object, no \`\`\` or text before or after. Use double quotes, escape strings properly. No trailing commas. Use \\n for line breaks inside long strings.
 
 {
-  "summary": "A short paragraph: overall state of results, age/gender if available.",
-  "keyItems": ["Item 1 to review", "Item 2", "Item 3"],
+  "isRelevantLabReport": true or false,
+  "rejectionReason": "empty string when true; short message in Spanish when false",
+  "summary": "2-4 sentences in English when valid; empty string when rejected",
+  "keyItems": ["Item 1", "Item 2", "Item 3"],
   "nextSteps": ["Next step 1", "Next step 2", "Next step 3"],
-  "questions": ["Question for your clinician 1", "Question 2", "Question 3"],
-  "extraInfo": "Optional free text: critical findings, suggested interpretation, explanation of abnormal results, possible causes. Use \\n for line breaks."
+  "questions": ["Question 1", "Question 2", "Question 3"],
+  "extraInfo": "Optional free text in English when valid; empty string when rejected"
 }
-
-- summary: 2-4 sentences in English.
-- keyItems: 3-5 key points for the patient to review (abnormal values, panels, etc.).
-- nextSteps: 3-4 recommended actions (e.g. repeat test, see specialist).
-- questions: 3-5 concrete questions to ask the clinician.
-- extraInfo: additional prose in English (critical findings, suggested interpretation, abnormal values explanation, possible causes). If nothing relevant, use empty string "".
-Respond with ONLY the JSON, no \`\`\` or explanations.
-- Do not use trailing commas after the last element in arrays or objects.
-- Use \\n for line breaks inside long strings (e.g. extraInfo).
 `;
 
     const diagnosisBlock = diagnosisText?.trim()
@@ -283,7 +316,7 @@ Respond with ONLY the JSON, no \`\`\` or explanations.
         }
       ],
       temperature: 0.3,
-      max_tokens: 1500
+      max_tokens: 2200
     };
 
     console.log(`✅ Payload construido (${JSON.stringify(payload).length} bytes)`);
@@ -391,28 +424,73 @@ Respond with ONLY the JSON, no \`\`\` or explanations.
     jsonStr = fixNewlinesInJsonStrings(jsonStr);
     jsonStr = jsonStr.replace(/[\u0000-\u001F]/g, (c) => (c === '\n' || c === '\r' || c === '\t' ? c : ' '));
 
+    const REJECTION_DEFAULT_MESSAGE =
+      "Este contenido no parece ser un análisis de sangre de un paciente, o las notas no están relacionadas. Por favor sube un reporte de laboratorio (PDF) y, si usas diagnóstico, que sea relevante a la salud del paciente.";
+
     let report: NearReport;
     try {
       const parsed = JSON.parse(jsonStr);
-      report = {
-        summary: typeof parsed.summary === 'string' ? parsed.summary : '',
-        keyItems: Array.isArray(parsed.keyItems) ? parsed.keyItems.filter((x: unknown) => typeof x === 'string') : [],
-        nextSteps: Array.isArray(parsed.nextSteps) ? parsed.nextSteps.filter((x: unknown) => typeof x === 'string') : [],
-        questions: Array.isArray(parsed.questions) ? parsed.questions.filter((x: unknown) => typeof x === 'string') : [],
-        extraInfo: typeof parsed.extraInfo === 'string' ? parsed.extraInfo : undefined,
-      };
-    } catch (parseError) {
-      console.warn("JSON.parse failed, trying fallback extraction:", parseError);
-      const fallback = extractReportFromText(content);
-      if (fallback) {
-        console.log("Fallback extraction succeeded, using extracted report.");
-        report = fallback;
-      } else {
-        console.error("Contenido recibido (primeros 800 chars):", content.slice(0, 800));
+
+      if (parsed.isRelevantLabReport === false) {
+        const reason =
+          typeof parsed.rejectionReason === "string" && parsed.rejectionReason.trim()
+            ? parsed.rejectionReason.trim()
+            : REJECTION_DEFAULT_MESSAGE;
+        console.log("🚫 Contenido rechazado por la IA (no es análisis de sangre / no relacionado):", reason);
         return {
           success: false,
-          error: "The model response could not be read as valid data. Please try again."
+          error: reason,
         };
+      }
+
+      report = {
+        summary: typeof parsed.summary === "string" ? parsed.summary : "",
+        keyItems: Array.isArray(parsed.keyItems) ? parsed.keyItems.filter((x: unknown) => typeof x === "string") : [],
+        nextSteps: Array.isArray(parsed.nextSteps) ? parsed.nextSteps.filter((x: unknown) => typeof x === "string") : [],
+        questions: Array.isArray(parsed.questions) ? parsed.questions.filter((x: unknown) => typeof x === "string") : [],
+        extraInfo: typeof parsed.extraInfo === "string" ? parsed.extraInfo : undefined,
+      };
+    } catch (parseError) {
+      console.warn("JSON.parse failed, trying repair and fallback:", parseError);
+      // Intentar reparar JSON truncado (string sin cerrar): añadir " y }
+      let repaired: unknown = null;
+      if (!jsonStr.trim().endsWith("}")) {
+        try {
+          const tryParse = JSON.parse(jsonStr.trimEnd() + '"}\n');
+          repaired = tryParse;
+        } catch {
+          // ignore
+        }
+      }
+      if (repaired && typeof repaired === "object" && repaired !== null) {
+        const p = repaired as Record<string, unknown>;
+        if (p.isRelevantLabReport === false) {
+          const reason =
+            typeof p.rejectionReason === "string" && (p.rejectionReason as string).trim()
+              ? (p.rejectionReason as string).trim()
+              : REJECTION_DEFAULT_MESSAGE;
+          return { success: false, error: reason };
+        }
+        report = {
+          summary: typeof p.summary === "string" ? p.summary : "",
+          keyItems: Array.isArray(p.keyItems) ? p.keyItems.filter((x: unknown) => typeof x === "string") : [],
+          nextSteps: Array.isArray(p.nextSteps) ? p.nextSteps.filter((x: unknown) => typeof x === "string") : [],
+          questions: Array.isArray(p.questions) ? p.questions.filter((x: unknown) => typeof x === "string") : [],
+          extraInfo: typeof p.extraInfo === "string" ? p.extraInfo : undefined,
+        };
+        console.log("Repaired truncated JSON and built report.");
+      } else {
+        const fallback = extractReportFromText(content);
+        if (fallback) {
+          console.log("Fallback extraction succeeded, using extracted report.");
+          report = fallback;
+        } else {
+          console.error("Contenido recibido (primeros 800 chars):", content.slice(0, 800));
+          return {
+            success: false,
+            error: "The model response could not be read as valid data. Please try again."
+          };
+        }
       }
     }
 

@@ -33,6 +33,13 @@ body {
     -apple-system, "Segoe UI", sans-serif;
 }
 
+/* Mobile: subtle tap highlight instead of default (improves perceived responsiveness) */
+@media (hover: none) and (pointer: coarse) {
+  * {
+    -webkit-tap-highlight-color: rgba(15, 23, 42, 0.08);
+  }
+}
+
 @keyframes fade-slide {
   from {
     opacity: 0;

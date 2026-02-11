@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { UiSpecialist } from "@/app/marketplace/specialists";
+import type { UiSpecialist } from "@/lib/marketplace/specialists";
 
 type MarketplaceContextValue = {
   specialists: UiSpecialist[];

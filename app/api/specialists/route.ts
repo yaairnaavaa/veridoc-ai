@@ -1,4 +1,4 @@
-import { getSpecialistsFromApi } from "@/app/marketplace/specialists";
+import { getSpecialistsFromApi } from "@/lib/marketplace/specialists";
 
 /** GET /api/specialists — proxies to external verification API and returns list as UiSpecialist[]. */
 export async function GET() {

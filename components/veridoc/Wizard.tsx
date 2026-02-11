@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useReducer } from "react";
+import { useTranslations } from "next-intl";
 import type { DiagnosisMode } from "@/lib/veridoc/localInference";
 import type { SavedReport } from "@/lib/veridoc/analysesStore";
 import { addAnalysis } from "@/lib/veridoc/analysesStore";
@@ -95,11 +96,13 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
     dispatch({ type: "setStep", step: 2 });
   };
 
+  const t = useTranslations("wizard");
+  const tCommon = useTranslations("common");
   const steps = [
-    { id: 1, label: "Upload your labs (PDF)" },
-    { id: 2, label: "Diagnosis (optional)" },
-    { id: 3, label: "Recommendation" },
-    { id: 4, label: "Second opinion" },
+    { id: 1, label: t("step1") },
+    { id: 2, label: t("step2") },
+    { id: 3, label: t("step3") },
+    { id: 4, label: t("step4") },
   ];
 
   const handleRequestSecondOpinion = (report: SavedReport) => {
@@ -139,7 +142,7 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
         <button
           type="button"
           onClick={handleBack}
-          aria-label="Go back to previous step"
+          aria-label={t("goBack")}
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
@@ -154,7 +157,7 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
           Veridoc
         </p>
         <p className="text-sm font-semibold text-slate-900">
-          Step {state.step}/4
+          {t("step", { current: `${state.step}/4` })}
         </p>
       </div>
     </>
@@ -174,9 +177,9 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
             <div className="sticky top-6 space-y-6">
               <div className="rounded-3xl border border-white/70 bg-white/70 p-5 shadow-sm backdrop-blur">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Steps
+                  {t("steps")}
                 </p>
-                <ol className="mt-4 grid gap-3" aria-label="Steps">
+                <ol className="mt-4 grid gap-3" aria-label={t("steps")}>
                   {steps.map((step) => {
                     const isActive = state.step === step.id;
                     const isComplete = state.step > step.id;
@@ -193,9 +196,9 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold">Step {step.id}</span>
+                          <span className="font-semibold">{t("stepXofY", { current: step.id })}</span>
                           {isComplete ? (
-                            <span className="text-xs font-semibold">Done</span>
+                            <span className="text-xs font-semibold">{tCommon("done")}</span>
                           ) : null}
                         </div>
                         <p className="mt-1 text-xs">{step.label}</p>

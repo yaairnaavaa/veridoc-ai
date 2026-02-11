@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo } from "react";
 import { X, Languages, Award, Briefcase, DollarSign, ShieldCheck } from "lucide-react";
-import type { UiSpecialist } from "@/app/marketplace/specialists";
+import type { UiSpecialist } from "@/lib/marketplace/specialists";
 
 export type MarketplaceFilters = {
   languages: string[];

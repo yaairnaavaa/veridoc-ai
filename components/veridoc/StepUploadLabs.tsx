@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
+import { useTranslations } from "next-intl";
 import { analyzeMedicalRecord } from "@/app/actions/analyze-medical-record";
 
 const PDF_MIME = "application/pdf";
@@ -23,6 +24,9 @@ const PDF_MIME = "application/pdf";
    onClear,
    onContinue,
  }: StepUploadLabsProps) => {
+  const t = useTranslations("stepUpload");
+  const tCommon = useTranslations("common");
+  const tResults = useTranslations("stepResults");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const analyzedFileRef = useRef<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -73,11 +77,11 @@ const PDF_MIME = "application/pdf";
         const result = await analyzeMedicalRecord(formData);
         if (!cancelled) {
           setAnalysisResult(result);
-          if (!result.success) setError(result.message || "Error analyzing the document.");
+          if (!result.success) setError(result.message || t("errorAnalyzing"));
         }
       } catch (err) {
         if (!cancelled) {
-          setError("Error processing the file. Please try again.");
+          setError(t("errorProcessing"));
           setAnalysisResult(null);
         }
       } finally {
@@ -91,10 +95,10 @@ const PDF_MIME = "application/pdf";
 
    const validateFile = (file: File) => {
      if (file.type !== PDF_MIME) {
-       return "Only PDF files are accepted. Please upload your lab report as a PDF.";
+       return t("pdfOnlyError");
      }
      if (file.size > maxBytes) {
-       return `File is too large. Max size is ${formatBytes(maxBytes)}.`;
+       return t("tooLarge", { maxSize: formatBytes(maxBytes) });
      }
      return null;
    };
@@ -160,10 +164,10 @@ const PDF_MIME = "application/pdf";
       <div className="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm backdrop-blur sm:p-6">
          <div className="flex flex-col gap-3">
           <h2 className="text-xl font-semibold text-slate-900">
-             Upload your lab report (PDF)
+             {t("title")}
            </h2>
            <p className="text-sm text-slate-600">
-            Tap or drag and drop your lab report. PDF only. Max {formatBytes(maxBytes)}.
+            {t("subtitle", { maxSize: formatBytes(maxBytes) })}
            </p>
          </div>
 
@@ -197,15 +201,15 @@ const PDF_MIME = "application/pdf";
              className="hidden"
            />
            <p className="text-sm font-medium text-slate-700">
-            Drop your PDF lab report here
+            {t("dropHere")}
            </p>
-           <p className="mt-2 text-xs text-slate-500">or</p>
+           <p className="mt-2 text-xs text-slate-500">{t("or")}</p>
            <button
              type="button"
              onClick={handleBrowse}
             className="mt-3 inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
            >
-             Browse files
+             {t("browse")}
            </button>
          </div>
 
@@ -221,28 +225,29 @@ const PDF_MIME = "application/pdf";
             className="mt-5 flex flex-col items-center gap-4 rounded-2xl border-2 border-teal-200 bg-teal-50/80 px-6 py-8 text-center"
             role="status"
             aria-live="polite"
-            aria-label="Reading file"
+            aria-label={t("readingFile")}
           >
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-teal-500 border-t-transparent" />
             <div className="space-y-1">
               <p className="text-sm font-semibold text-teal-800">
-                Reading your file…
+                {t("readingProgress")}
               </p>
               <p className="text-xs text-teal-600 max-w-sm">
-                Extracting text from the PDF. This may take 1–2 minutes for long documents. If it fails, we'll try up to 2 times automatically.
+                {t("readingHint")}
               </p>
             </div>
-            <p className="text-xs text-teal-500">Please don’t close this page.</p>
+            <p className="text-xs text-teal-500">{t("dontClose")}</p>
           </div>
         ) : null}
 
-        {/* PDF leído correctamente */}
+        {/* PDF success */}
         {analysisResult?.success && labsFile ? (
           <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            <p className="font-semibold">PDF read successfully</p>
-            <p className="mt-1 text-xs">Text was extracted from your lab report. You can continue to the next step.</p>
+            <p className="font-semibold">{t("pdfSuccess")}</p>
+            <p className="mt-1 text-xs">{t("pdfSuccessHint")}</p>
           </div>
         ) : null}
+
 
         {labsFile ? (
           <div className="mt-6 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -254,7 +259,7 @@ const PDF_MIME = "application/pdf";
                       {labsFile.name}
                     </p>
                     <p className="text-xs text-slate-500">
-                      {labsFile.type || "Unknown type"} |{" "}
+                      {labsFile.type || tResults("unknownType")} |{" "}
                       {formatBytes(labsFile.size)}
                     </p>
                   </div>
@@ -268,7 +273,7 @@ const PDF_MIME = "application/pdf";
                     }}
                     className="inline-flex h-11 items-center rounded-full border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                   >
-                    Remove file
+                    {t("removeFile")}
                   </button>
                 </div>
               </div>
@@ -281,23 +286,23 @@ const PDF_MIME = "application/pdf";
                     className="inline-flex h-11 w-full items-center justify-between rounded-2xl border border-slate-200 bg-white/80 px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                     aria-expanded={isPreviewOpen}
                   >
-                    Preview
+                    {tCommon("preview")}
                     <span className="text-xs font-semibold text-slate-500">
-                      {isPreviewOpen ? "Hide" : "Show"}
+                      {isPreviewOpen ? tCommon("hide") : tCommon("show")}
                     </span>
                   </button>
                   {isPreviewOpen ? (
                     <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200/70 bg-white">
                       {isPdf ? (
                         <div className="flex flex-col gap-3 p-4 text-sm text-slate-600">
-                          <p>PDF preview opens full screen.</p>
-                          <button
-                            type="button"
-                            onClick={() => setIsPdfPreviewOpen(true)}
-                            className="inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-5 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-                          >
-                            Open preview
-                          </button>
+                          <p>{t("pdfPreviewNote")}</p>
+                  <button
+                    type="button"
+                    onClick={() => setIsPdfPreviewOpen(true)}
+                    className="inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-5 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                  >
+                    {t("openPreview")}
+                  </button>
                         </div>
                       ) : (
                         <div
@@ -306,7 +311,7 @@ const PDF_MIME = "application/pdf";
                         >
                           <img
                             src={previewUrl}
-                            alt="Lab upload preview"
+                            alt={t("labPreview")}
                             className="h-full w-full object-contain"
                           />
                         </div>
@@ -324,16 +329,16 @@ const PDF_MIME = "application/pdf";
                     data={previewUrl}
                     type="application/pdf"
                     className="h-72 w-full"
-                    aria-label="Lab PDF preview"
+                    aria-label={t("labPreview")}
                   >
                     <div className="p-4 text-sm text-slate-600">
-                      Preview unavailable. Please download the file to view it.
+                      {t("previewUnavailable")}
                     </div>
                   </object>
                 ) : (
                   <img
                     src={previewUrl}
-                    alt="Lab upload preview"
+                    alt={t("labPreview")}
                     className="h-72 w-full object-contain"
                   />
                 )}
@@ -346,7 +351,7 @@ const PDF_MIME = "application/pdf";
       <div className="sticky bottom-0 z-10 -mx-4 border-t border-white/70 bg-[#f5fbfb]/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
         <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:justify-end">
           {labsFile && isPdf && isLoading && (
-            <p className="text-xs text-slate-500">Extracting document…</p>
+            <p className="text-xs text-slate-500">{t("extracting")}</p>
           )}
           <button
             type="button"
@@ -354,7 +359,7 @@ const PDF_MIME = "application/pdf";
             disabled={!canContinue}
             className="inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
           >
-            Continue
+            {tCommon("continue")}
           </button>
         </div>
       </div>
@@ -381,10 +386,10 @@ const PDF_MIME = "application/pdf";
               data={previewUrl}
               type="application/pdf"
               className="h-full w-full"
-              aria-label="Lab PDF preview"
+              aria-label={t("labPreview")}
             >
               <div className="p-4 text-sm text-slate-600">
-                Preview unavailable. Please download the file to view it.
+                {t("previewUnavailable")}
               </div>
             </object>
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import {
   Star,
   MapPin,
@@ -10,7 +10,7 @@ import {
   ChevronRight,
   ExternalLink,
 } from "lucide-react";
-import type { UiSpecialist } from "@/app/marketplace/specialists";
+import type { UiSpecialist } from "@/lib/marketplace/specialists";
 
 export function SpecialistCard({ specialist }: { specialist: UiSpecialist }) {
   return (

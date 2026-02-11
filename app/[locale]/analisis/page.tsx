@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import {
   getAnalyses,
   removeAnalysis,
@@ -32,9 +33,11 @@ function formatDate(iso: string) {
 function AnalysisCard({
   analysis,
   onRemove,
+  t,
 }: {
   analysis: SavedAnalysis;
   onRemove: () => void;
+  t: (key: string) => string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const summaryPreview =
@@ -65,16 +68,16 @@ function AnalysisCard({
             className="inline-flex items-center gap-2 rounded-full bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700"
           >
             <Stethoscope className="h-4 w-4" />
-            Segunda opinión
+            {t("secondOpinion")}
           </Link>
           <button
             type="button"
             onClick={onRemove}
             className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-            aria-label="Eliminar análisis"
+            aria-label={t("removeAria")}
           >
             <Trash2 className="h-4 w-4" />
-            Eliminar
+            {t("remove")}
           </button>
         </div>
       </div>
@@ -87,12 +90,12 @@ function AnalysisCard({
         {expanded ? (
           <>
             <ChevronUp className="h-4 w-4" />
-            Ocultar resumen
+            {t("hideSummary")}
           </>
         ) : (
           <>
             <ChevronDown className="h-4 w-4" />
-            Ver resumen completo
+            {t("viewFullSummary")}
           </>
         )}
       </button>
@@ -101,7 +104,7 @@ function AnalysisCard({
         <div className="mt-4 space-y-4 rounded-2xl border border-slate-200/70 bg-white/90 p-4 text-sm">
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Resumen
+              {t("summary")}
             </h4>
             <p className="mt-1 leading-relaxed text-slate-700">
               {analysis.report.summary}
@@ -110,7 +113,7 @@ function AnalysisCard({
           {analysis.report.keyItems.length > 0 && (
             <div>
               <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Puntos clave
+                {t("keyItems")}
               </h4>
               <ul className="mt-1 list-disc space-y-1 pl-5 text-slate-700">
                 {analysis.report.keyItems.map((item, i) => (
@@ -122,7 +125,7 @@ function AnalysisCard({
           {analysis.report.nextSteps.length > 0 && (
             <div>
               <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Siguientes pasos
+                {t("nextSteps")}
               </h4>
               <ul className="mt-1 list-disc space-y-1 pl-5 text-slate-700">
                 {analysis.report.nextSteps.map((item, i) => (
@@ -134,7 +137,7 @@ function AnalysisCard({
           {analysis.report.questions.length > 0 && (
             <div>
               <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Preguntas para el médico
+                {t("questionsForDoctor")}
               </h4>
               <ul className="mt-1 list-disc space-y-1 pl-5 text-slate-700">
                 {analysis.report.questions.map((item, i) => (
@@ -146,7 +149,7 @@ function AnalysisCard({
           {analysis.report.extraInfo && (
             <div>
               <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Información adicional
+                {t("additionalInfo")}
               </h4>
               <p className="mt-1 whitespace-pre-wrap leading-relaxed text-slate-700">
                 {analysis.report.extraInfo}
@@ -160,6 +163,7 @@ function AnalysisCard({
 }
 
 export default function AnalisisPage() {
+  const t = useTranslations("analisis");
   const [analyses, setAnalyses] = useState<SavedAnalysis[]>([]);
 
   const refresh = useCallback(() => {
@@ -177,11 +181,11 @@ export default function AnalisisPage() {
 
   const handleClearAll = useCallback(() => {
     if (typeof window === "undefined") return;
-    if (!confirm("¿Borrar todos los análisis? Esta acción no se puede deshacer."))
+    if (!confirm(t("confirmClearAll")))
       return;
     clearAnalyses();
     setAnalyses([]);
-  }, []);
+  }, [t]);
 
   return (
     <div className="min-h-screen bg-[#f6fbfb] text-slate-900">
@@ -196,12 +200,10 @@ export default function AnalisisPage() {
         <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-8 lg:px-10">
           <section className="mb-8">
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
-              Tus análisis
+              {t("title")}
             </h1>
             <p className="mt-2 text-slate-600">
-              Aquí se guardan los análisis que completas en el wizard. Puedes
-              solicitar una segunda opinión a un médico del marketplace o
-              eliminar los que ya no necesites.
+              {t("description")}
             </p>
           </section>
 
@@ -209,14 +211,14 @@ export default function AnalisisPage() {
             <>
               <div className="mb-4 flex items-center justify-between">
                 <span className="text-sm text-slate-500">
-                  {analyses.length} análisis guardado{analyses.length !== 1 ? "s" : ""}
+                  {t("analysesSaved", { count: analyses.length })}
                 </span>
                 <button
                   type="button"
                   onClick={handleClearAll}
                   className="text-sm font-medium text-slate-600 underline hover:text-red-600"
                 >
-                  Borrar todos
+                  {t("clearAll")}
                 </button>
               </div>
               <ul className="grid gap-6">
@@ -225,6 +227,7 @@ export default function AnalisisPage() {
                     <AnalysisCard
                       analysis={analysis}
                       onRemove={() => handleRemove(analysis.id)}
+                      t={t}
                     />
                   </li>
                 ))}
@@ -236,17 +239,16 @@ export default function AnalisisPage() {
                 <Inbox className="h-10 w-10 text-slate-400" />
               </div>
               <h2 className="text-lg font-semibold text-slate-900">
-                Aún no hay análisis
+                {t("noAnalysesYet")}
               </h2>
               <p className="mt-2 max-w-sm text-slate-600">
-                Sube tus estudios en Veridoc, completa el wizard y solicita
-                segunda opinión para que aquí aparezcan.
+                {t("noAnalysesHint")}
               </p>
               <Link
                 href="/veridoc"
                 className="mt-6 inline-flex items-center gap-2 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
-                Ir al wizard
+                {t("goToWizard")}
               </Link>
             </div>
           )}

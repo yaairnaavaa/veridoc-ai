@@ -197,9 +197,15 @@ const DEBUG_EXTRACTION_PATH = join(process.cwd(), 'debug_extraction.md');
  * Si se proporciona diagnosisText, se incluye en el prompt para que la IA lo tenga en cuenta.
  *
  * @param diagnosisText - Texto opcional con el diagnóstico o notas del paciente (paso 2 del wizard)
+ * @param locale - Idioma para la respuesta: 'es' (español) o 'en' (inglés). Por defecto 'en'.
  * @returns Resultado del análisis con el contenido de la respuesta o error
  */
-export async function analyzeWithNearAI(diagnosisText?: string): Promise<AnalyzeNearResult> {
+export async function analyzeWithNearAI(
+  diagnosisText?: string,
+  locale?: "es" | "en"
+): Promise<AnalyzeNearResult> {
+  const outputLang = locale === "es" ? "Spanish" : "English";
+  const rejectionLang = locale === "es" ? "Spanish" : "English";
   // ✅ VERIFICACIÓN: Validar API Key
   const apiKey = process.env.NEAR_AI_API_KEY;
   if (!apiKey) {
@@ -269,7 +275,7 @@ Before analyzing, you MUST decide if the content is acceptable:
 
 If either the document or the diagnosis/notes (when provided) is not acceptable, respond with the same JSON structure but set:
 - "isRelevantLabReport": false
-- "rejectionReason": a short message in Spanish for the user (e.g. "Este documento no parece ser un análisis de sangre de un paciente." or "Las notas de diagnóstico no parecen estar relacionadas con la salud del paciente."). Be clear and polite.
+- "rejectionReason": a short message in ${rejectionLang} for the user. Be clear and polite.
 - You may leave summary, keyItems, nextSteps, questions, and extraInfo as empty strings or empty arrays.
 
 ## PHASE 2 – ANALYSIS (only when isRelevantLabReport is true)
@@ -277,7 +283,7 @@ If either the document or the diagnosis/notes (when provided) is not acceptable,
 When the document IS a patient blood/lab analysis and any provided diagnosis/notes ARE relevant:
 - Set "isRelevantLabReport": true
 - Set "rejectionReason": ""
-- Fill summary, keyItems, nextSteps, questions, and extraInfo as below. Write all analysis content in English.
+- Fill summary, keyItems, nextSteps, questions, and extraInfo as below. Write ALL analysis content (summary, keyItems, nextSteps, questions, extraInfo) in ${outputLang}.
 
 RULES for analysis:
 - Do NOT describe the document (e.g. "the document has a header"). Get to the point.
@@ -289,12 +295,12 @@ Respond with ONLY a valid JSON object, no \`\`\` or text before or after. Use do
 
 {
   "isRelevantLabReport": true or false,
-  "rejectionReason": "empty string when true; short message in Spanish when false",
-  "summary": "2-4 sentences in English when valid; empty string when rejected",
+  "rejectionReason": "empty string when true; short message in ${rejectionLang} when false",
+  "summary": "2-4 sentences in ${outputLang} when valid; empty string when rejected",
   "keyItems": ["Item 1", "Item 2", "Item 3"],
   "nextSteps": ["Next step 1", "Next step 2", "Next step 3"],
   "questions": ["Question 1", "Question 2", "Question 3"],
-  "extraInfo": "Optional free text in English when valid; empty string when rejected"
+  "extraInfo": "Optional free text in ${outputLang} when valid; empty string when rejected"
 }
 `;
 

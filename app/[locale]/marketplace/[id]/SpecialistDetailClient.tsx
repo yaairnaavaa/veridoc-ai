@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useParams, notFound } from "next/navigation";
-import { SpecialistDetailView } from "@/app/marketplace/SpecialistDetailView";
-import type { UiSpecialist } from "@/app/marketplace/specialists";
+import { useTranslations } from "next-intl";
+import { SpecialistDetailView } from "../SpecialistDetailView";
+import type { UiSpecialist } from "@/lib/marketplace/specialists";
 
 export function SpecialistDetailClient() {
   const params = useParams();
+  const t = useTranslations("marketplace");
   const identifier = typeof params?.id === "string" ? params.id : "";
   const [specialist, setSpecialist] = useState<UiSpecialist | null | "loading">("loading");
 
@@ -38,7 +40,7 @@ export function SpecialistDetailClient() {
   if (specialist === "loading") {
     return (
       <div className="min-h-screen bg-[#f6fbfb] flex items-center justify-center">
-        <p className="text-slate-500">Cargando especialista...</p>
+        <p className="text-slate-500">{t("loadingSpecialist")}</p>
       </div>
     );
   }

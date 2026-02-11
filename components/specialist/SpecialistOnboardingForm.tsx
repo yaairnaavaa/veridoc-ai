@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, ChangeEvent } from "react";
+import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { useNEAR } from "@/context/NearContext";
 import { uploadSpecialistFilesToCloudinary, saveSpecialistToApi } from "@/app/actions/specialist";
@@ -46,6 +47,7 @@ export function SpecialistOnboardingForm({
   userWallet: string;
   onSuccess?: () => void;
 }) {
+  const t = useTranslations("profileOnboarding");
   const { user } = usePrivy();
   const { walletId } = useNEAR();
 
@@ -201,11 +203,11 @@ export function SpecialistOnboardingForm({
 
       const result = await saveSpecialistToApi(document);
       if (result.ok) {
-        setToast({ message: "Information saved successfully", type: "success" });
+        setToast({ message: t("infoSavedSuccess"), type: "success" });
         setSuccess(true);
       } else {
         setToast({
-          message: (result.error ?? (result.status ? `Error ${result.status}` : "Error saving to the API.")) || "Error saving to the API.",
+          message: (result.error ?? (result.status ? `Error ${result.status}` : t("errorSavingApi"))) || t("errorSavingApi"),
           type: "error",
         });
       }
@@ -222,8 +224,8 @@ export function SpecialistOnboardingForm({
         <div className="rounded-full bg-green-100 p-4 mb-4">
           <CheckCircle className="w-12 h-12 text-green-600" />
         </div>
-        <h3 className="text-xl font-bold text-slate-900">Specialist Saved!</h3>
-        <p className="text-slate-500 mt-2">Preparing form for the next one...</p>
+        <h3 className="text-xl font-bold text-slate-900">{t("savedSuccess")}</h3>
+        <p className="text-slate-500 mt-2">{t("preparingNext")}</p>
       </div>
     );
   }
@@ -271,7 +273,7 @@ export function SpecialistOnboardingForm({
           <label 
             htmlFor="image-upload" 
             className="absolute bottom-0 right-0 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-teal-600 text-white shadow-sm transition hover:bg-teal-700 group-hover:scale-110"
-            title="Upload photo"
+            title={t("uploadPhoto")}
           >
             <Camera className="h-5 w-5" />
           </label>
@@ -285,28 +287,28 @@ export function SpecialistOnboardingForm({
             onChange={handleImageChange}
           />
         </div>
-        <p className="text-sm text-slate-500">Profile Photo (Optional)</p>
+        <p className="text-sm text-slate-500">{t("profilePhotoOptional")}</p>
       </div>
 
       {/* Section 1: Professional Data */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
           <User className="w-5 h-5 text-teal-600" />
-          Professional Details
+          {t("professionalDetails")}
         </h3>
         
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">Professional Title</label>
+            <label className="text-sm font-medium text-slate-700">{t("professionalTitle")}</label>
             <input 
               name="title" 
-              placeholder="Ex: Dr. John Doe" 
+              placeholder={t("placeholderTitle")} 
               className={inputClassName}
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">Specialty</label>
+            <label className="text-sm font-medium text-slate-700">{t("specialty")}</label>
             <div ref={specialtyRef} className="relative">
               <input type="hidden" name="specialty" value={selectedSpecialty} />
               <div
@@ -327,7 +329,7 @@ export function SpecialistOnboardingForm({
                     setSpecialtyOpen(true);
                   }}
                   onFocus={() => setSpecialtyOpen(true)}
-                  placeholder={selectedSpecialty || "Search specialty..."}
+                  placeholder={selectedSpecialty || t("searchSpecialty")}
                   className="flex-1 min-w-0 bg-transparent outline-none placeholder:text-slate-400"
                   aria-autocomplete="list"
                   aria-activedescendant={undefined}
@@ -342,7 +344,7 @@ export function SpecialistOnboardingForm({
                   aria-labelledby="specialty-combobox"
                 >
                   {filteredSpecialties.length === 0 ? (
-                    <li className="px-4 py-3 text-sm text-slate-500">No specialty matches</li>
+                    <li className="px-4 py-3 text-sm text-slate-500">{t("noSpecialtyMatches")}</li>
                   ) : (
                     filteredSpecialties.map((s) => (
                       <li
@@ -368,11 +370,11 @@ export function SpecialistOnboardingForm({
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-700">Bio</label>
+          <label className="text-sm font-medium text-slate-700">{t("bio")}</label>
           <textarea 
             name="bio" 
             rows={3}
-            placeholder="Describe your experience..." 
+            placeholder={t("describeExperience")} 
             className={inputClassName}
           />
         </div>
@@ -382,18 +384,18 @@ export function SpecialistOnboardingForm({
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
           <FileCheck className="w-5 h-5 text-teal-600" />
-          Verification
+          {t("verification")}
         </h3>
         <p className="text-sm text-slate-500">
-          Optional documents, but required to get your profile verified. Image or PDF.
+          {t("verificationHint")}
         </p>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-              <FileCheck className="w-3 h-3" /> Degree document
+              <FileCheck className="w-3 h-3" /> {t("degreeDocument")}
             </label>
             <label className="flex flex-col gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 cursor-pointer hover:bg-slate-100 focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-teal-500">
-              <span className="font-medium text-slate-700">Select file</span>
+              <span className="font-medium text-slate-700">{t("selectFile")}</span>
               <span className="text-xs text-slate-500">{titleDocName ?? "PNG, JPG, PDF"}</span>
               <input
                 type="file"
@@ -406,10 +408,10 @@ export function SpecialistOnboardingForm({
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-              <IdCard className="w-3 h-3" /> License document
+              <IdCard className="w-3 h-3" /> {t("licenseDocument")}
             </label>
             <label className="flex flex-col gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 cursor-pointer hover:bg-slate-100 focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-teal-500">
-              <span className="font-medium text-slate-700">Select file</span>
+              <span className="font-medium text-slate-700">{t("selectFile")}</span>
               <span className="text-xs text-slate-500">{cedulaFileName ?? "PNG, JPG, PDF"}</span>
               <input
                 type="file"
@@ -427,29 +429,29 @@ export function SpecialistOnboardingForm({
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
           <Award className="w-5 h-5 text-teal-600" />
-          Consultation Details
+          {t("consultationDetails")}
         </h3>
 
         <div className="grid gap-4 md:grid-cols-3">
           <div className="space-y-2">
              <label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-               <Clock className="w-3 h-3" /> Years Exp.
+               <Clock className="w-3 h-3" /> {t("yearsExp")}
              </label>
              <input type="number" name="experienceYears" defaultValue={0} className={inputClassName} />
           </div>
           
           <div className="space-y-2">
              <label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-               <DollarSign className="w-3 h-3" /> Price ($)
+               <DollarSign className="w-3 h-3" /> {t("price")}
              </label>
              <input type="number" name="pricePerSession" defaultValue={50} className={inputClassName} />
           </div>
 
           <div className="space-y-2">
              <label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-               <Globe className="w-3 h-3" /> Languages
+               <Globe className="w-3 h-3" /> {t("languages")}
              </label>
-             <input name="languages" placeholder="English, Spanish" className={inputClassName}/>
+             <input name="languages" placeholder={t("languagesPlaceholder")} className={inputClassName}/>
           </div>
         </div>
       </div>
@@ -462,7 +464,7 @@ export function SpecialistOnboardingForm({
           disabled={uploading}
           className="w-full flex items-center justify-center gap-2 rounded-full bg-slate-900 px-8 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-800 active:scale-95 disabled:opacity-50"
         >
-          {uploading ? "Uploading to Cloudinary…" : "Save Profile"}
+          {uploading ? t("uploadingCloudinary") : t("saveProfile")}
         </button>
       </div>
     </form>

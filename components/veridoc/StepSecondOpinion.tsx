@@ -1,6 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import { ChevronRight, Stethoscope, ShieldCheck } from "lucide-react";
 
 type StepSecondOpinionProps = {
@@ -14,6 +15,9 @@ export const StepSecondOpinion = ({
   onBack,
   onStartOver,
 }: StepSecondOpinionProps) => {
+  const t = useTranslations("stepSecondOpinion");
+  const tCommon = useTranslations("common");
+  const tNav = useTranslations("nav");
   const marketplaceHref = analysisId ? `/marketplace?from=wizard&analysisId=${analysisId}` : "/marketplace?from=wizard";
 
   return (
@@ -24,21 +28,16 @@ export const StepSecondOpinion = ({
             <Stethoscope className="h-6 w-6" />
           </div>
           <h2 className="text-xl font-semibold text-slate-900">
-            Solicitar segunda opinión
+            {t("title")}
           </h2>
           <p className="text-sm leading-relaxed text-slate-600">
-            Lleva tus estudios y el pronóstico que generaste a un médico certificado.
-            En el marketplace puedes elegir un especialista, pagar con USDT y enviar
-            tus datos de forma segura para obtener una segunda opinión profesional.
+            {t("subtitle")}
           </p>
           <div className="flex items-start gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4">
             <ShieldCheck className="h-5 w-5 shrink-0 text-teal-600" />
             <div className="text-sm text-slate-600">
-              <p className="font-medium text-slate-800">Anónimo y bajo tu control</p>
-              <p className="mt-1">
-                Subes tus análisis en Veridoc, obtienes el pronóstico por inferencia privada
-                y, si quieres, pagas solo por solicitar la opinión de un médico verificado.
-              </p>
+              <p className="font-medium text-slate-800">{t("anonymousTitle")}</p>
+              <p className="mt-1">{t("anonymousBody")}</p>
             </div>
           </div>
         </div>
@@ -48,13 +47,13 @@ export const StepSecondOpinion = ({
             href={marketplaceHref}
             className="flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800 hover:shadow-lg active:scale-[0.98]"
           >
-            Ir al marketplace de especialistas
+            {t("goToMarketplace")}
             <ChevronRight className="h-4 w-4 opacity-80" />
           </Link>
           <p className="text-center text-xs text-slate-500">
-            Podrás ver todos tus análisis en la página{" "}
+            {t("viewAnalyses")}{" "}
             <Link href="/analisis" className="font-medium text-teal-700 underline hover:text-teal-800">
-              Análisis
+              {tNav("analisis")}
             </Link>
             .
           </p>
@@ -62,7 +61,7 @@ export const StepSecondOpinion = ({
 
         <div className="mt-6 rounded-2xl border border-slate-200/70 bg-white/80 p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Otras acciones
+            {t("otherActions")}
           </p>
           <div className="mt-3 flex flex-wrap gap-3">
             <button
@@ -70,14 +69,14 @@ export const StepSecondOpinion = ({
               onClick={onBack}
               className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
             >
-              Volver al pronóstico
+              {t("backToReport")}
             </button>
             <button
               type="button"
               onClick={onStartOver}
               className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
             >
-              Empezar de nuevo
+              {t("startOver")}
             </button>
           </div>
         </div>
@@ -90,7 +89,7 @@ export const StepSecondOpinion = ({
             onClick={onBack}
             className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
           >
-            Atrás
+            {tCommon("back")}
           </button>
         </div>
       </div>

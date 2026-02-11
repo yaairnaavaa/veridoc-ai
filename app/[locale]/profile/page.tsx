@@ -4,11 +4,12 @@ import { getUsdtBalance, formatUsdtBalance, createTransferUsdtAction, parseUsdtA
 
 import { encodeSignedDelegate } from "@near-js/transactions";
 import { usePrivy } from "@privy-io/react-auth";
+import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState, Suspense } from "react";
 import { NavBar } from "@/components/NavBar";
 import { Coins, Loader2, User, ShieldCheck, CreditCard, RefreshCw, ExternalLink, Copy, Check, ChevronDown, Stethoscope, X, Image as ImageIcon, FileCheck, IdCard } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { useNEAR } from "@/context/NearContext";
 //import { getVerifierBalance, formatUsdtBalance, createDepositUsdtAction, createWithdrawUsdtAction, USDT_CONTRACT_ID, VERIFIER_CONTRACT_ID,} from "@/lib/near-intents";
 import { processCrossChainWithdrawal, getRouteConfigForNetwork, USDT_WITHDRAW_SUPPORTED_NETWORK_IDS } from "@/lib/near-intents-withdraw";
@@ -37,11 +38,13 @@ const USDT_LOGO_URL =
 
 type ProfileTabId = "profile" | "verified" | "balance";
 
-const TABS: { id: ProfileTabId; label: string; shortLabel?: string; icon: typeof User }[] = [
-  { id: "profile", label: "Account", shortLabel: "Account", icon: User },
-  { id: "verified", label: "Verified Profile", shortLabel: "Verified", icon: ShieldCheck },
-  { id: "balance", label: "Payments & balance", shortLabel: "Payments", icon: CreditCard },
-];
+function getTabs(t: (key: string) => string): { id: ProfileTabId; label: string; shortLabel: string; icon: typeof User }[] {
+  return [
+    { id: "profile", label: t("tabAccount"), shortLabel: t("tabAccount"), icon: User },
+    { id: "verified", label: t("tabVerified"), shortLabel: t("tabVerified"), icon: ShieldCheck },
+    { id: "balance", label: t("tabBalance"), shortLabel: t("tabPaymentsShort"), icon: CreditCard },
+  ];
+}
 
 function getUserDisplayName(user: {
   id?: string;
@@ -57,11 +60,14 @@ function getUserDisplayName(user: {
 }
 
 function ProfilePageContent() {
+  const t = useTranslations("profile");
+  const tNav = useTranslations("nav");
   const { ready, authenticated, user } = usePrivy();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { walletId, nearAccount, isLoading: nearLoading, createNearWallet, isFunding, provider, accountExistsOnChain, refreshAccountExists } = useNEAR();
   const [copiedFundAddress, setCopiedFundAddress] = useState(false);
+  const TABS = getTabs(t);
   const [usdtBalance, setUsdtBalance] = useState<string | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(true);
   const [copiedReceiveAddress, setCopiedReceiveAddress] = useState(false);
@@ -159,17 +165,15 @@ function ProfilePageContent() {
     const amount = withdrawAmount.trim();
     const receiverRaw = withdrawReceiver.trim() || walletId;
     if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
-      setWithdrawError("Please enter a valid amount.");
+      setWithdrawError(t("pleaseEnterAmount"));
       return;
     }
     if (!receiverRaw) {
-      setWithdrawError("Please enter the destination NEAR account ID.");
+      setWithdrawError(t("pleaseEnterDestination"));
       return;
     }
     if (!isValidNearAccountId(receiverRaw)) {
-      setWithdrawError(
-        "Invalid NEAR account ID. Use a 64-character hex address (implicit) or a named account (e.g. alice.near)."
-      );
+      setWithdrawError(t("invalidNearAccount"));
       return;
     }
     const receiver = normalizeNearAccountId(receiverRaw);
@@ -199,11 +203,11 @@ function ProfilePageContent() {
       setWithdrawReceiver("");
       refreshBalance();
     } catch (e) {
-      setWithdrawError(e instanceof Error ? e.message : "Something went wrong. Please try again.");
+      setWithdrawError(e instanceof Error ? e.message : t("somethingWentWrong"));
     } finally {
       setWithdrawLoading(false);
     }
-  }, [nearAccount, walletId, withdrawAmount, withdrawReceiver, refreshBalance]);
+  }, [nearAccount, walletId, withdrawAmount, withdrawReceiver, refreshBalance, t]);
 
   const handleCopyReceiveAddress = useCallback(() => {
     if (!walletId) return;
@@ -276,19 +280,19 @@ function ProfilePageContent() {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          setUpdateError((data?.message ?? data?.error) || "Failed to update");
+          setUpdateError((data?.message ?? data?.error) || t("failedToUpdate"));
           return;
         }
         setSpecialistProfile(data?.data ?? data ?? payload);
         setUpdateModalOpen(false);
         refreshSpecialistProfile();
       } catch {
-        setUpdateError("Failed to update profile");
+        setUpdateError(t("failedToUpdateProfile"));
       } finally {
         setUpdateSaving(false);
       }
     },
-    [privyWallet, specialistProfile, refreshSpecialistProfile]
+    [privyWallet, specialistProfile, refreshSpecialistProfile, t]
   );
 
   useEffect(() => {
@@ -304,7 +308,7 @@ function ProfilePageContent() {
       <div className="flex min-h-screen items-center justify-center bg-[#f6fbfb] px-4">
         <div className="flex flex-col items-center gap-3">
           <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-teal-500" aria-hidden />
-          <p className="text-sm text-slate-500">Loading…</p>
+          <p className="text-sm text-slate-500">{t("loading")}</p>
         </div>
       </div>
     );
@@ -326,16 +330,16 @@ function ProfilePageContent() {
 
         <main className="mx-auto w-full max-w-3xl px-4 pb-12 pt-6 sm:px-6 sm:pb-16 sm:pt-8 lg:px-8">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
-            Profile
+            {t("title")}
           </h1>
           <p className="mt-1.5 text-sm text-slate-600 sm:mt-2 sm:text-base">
-            Your account, verified specialists, and payment balance.
+            {t("subtitle")}
           </p>
 
           {/* Tabs — mobile: scrollable; desktop: full width */}
           <div
             role="tablist"
-            aria-label="Profile sections"
+            aria-label={t("tabListAria")}
             className="mt-6 -mx-4 overflow-x-auto border-b border-slate-200 sm:mx-0 sm:overflow-visible"
           >
             <div className="flex min-w-0 gap-0 sm:gap-1">
@@ -379,34 +383,34 @@ function ProfilePageContent() {
                   <User className="h-5 w-5 text-teal-700 sm:h-6 sm:w-6" aria-hidden />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Your account</h2>
-                  <p className="mt-0.5 text-sm text-slate-500">How you sign in and where payments are sent.</p>
+                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">{t("yourAccount")}</h2>
+                  <p className="mt-0.5 text-sm text-slate-500">{t("yourAccountDesc")}</p>
                 </div>
               </div>
 
               <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-4 shadow-sm sm:px-5 sm:py-5">
-                <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Signed in as</p>
+                <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{t("signedInAs")}</p>
                 <p className="mt-1.5 font-medium text-slate-900">{getUserDisplayName(user)}</p>
                 {walletId ? (
                   <>
                     <p className="mt-2 font-mono text-sm text-slate-600 break-all" title={walletId}>
-                      Payment account: {walletId.length > 28 ? `${walletId.slice(0, 14)}…${walletId.slice(-12)}` : walletId}
+                      {t("paymentAccount")} {walletId.length > 28 ? `${walletId.slice(0, 14)}…${walletId.slice(-12)}` : walletId}
                     </p>
                     <p className="mt-2 text-xs text-slate-500">
-                      To receive USDT and withdraw, fund this account with NEAR in the <button type="button" onClick={() => setActiveTab("balance")} className="font-medium text-teal-600 hover:text-teal-700 underline">Payments & balance</button> tab.
+                      {t("toReceiveUsdt")} <button type="button" onClick={() => setActiveTab("balance")} className="font-medium text-teal-600 hover:text-teal-700 underline">{t("paymentsBalanceTab")}</button> {t("tab")}
                     </p>
                   </>
                 ) : (
                   <div className="mt-4">
                     {nearLoading ? (
-                      <p className="text-sm text-slate-500">Setting up your payment account…</p>
+                      <p className="text-sm text-slate-500">{t("settingUpPayment")}</p>
                     ) : (
                       <button
                         type="button"
                         onClick={() => createNearWallet()}
                         className="rounded-xl bg-teal-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-teal-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 active:bg-teal-800"
                       >
-                        Try again
+                        {t("tryAgain")}
                       </button>
                     )}
                   </div>
@@ -418,13 +422,13 @@ function ProfilePageContent() {
                   href="/marketplace"
                   className="inline-flex min-h-[2.75rem] items-center rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                 >
-                  Marketplace
+                  {tNav("marketplace")}
                 </Link>
                 <Link
                   href="/"
                   className="inline-flex min-h-[2.75rem] items-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
                 >
-                  Back to home
+                  {t("backToHome")}
                 </Link>
               </div>
             </section>
@@ -443,27 +447,27 @@ function ProfilePageContent() {
                   <ShieldCheck className="h-5 w-5 text-emerald-700 sm:h-6 sm:w-6" aria-hidden />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Verified profile</h2>
-                  <p className="mt-0.5 text-sm text-slate-500">How we check the experts who give second opinions.</p>
+                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">{t("verifiedProfile")}</h2>
+                  <p className="mt-0.5 text-sm text-slate-500">{t("verifiedProfileDesc")}</p>
                 </div>
               </div>
 
               <div className="mt-4 max-w-prose rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm sm:p-6">
                 <p className="text-sm leading-relaxed text-slate-700 sm:text-base">
-                  On Veridoc, every specialist who offers a second opinion on your lab results goes through a verification process. This helps keep you safe and ensures quality care.
+                  {t("verificationIntro")}
                 </p>
                 <ul className="mt-5 space-y-3 text-sm text-slate-600 sm:text-base">
                   <li className="flex gap-3">
                     <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-teal-500" aria-hidden />
-                    <span><strong className="text-slate-700">Professional identity.</strong> We confirm who they are and, when relevant, their link to medical boards or institutions.</span>
+                    <span><strong className="text-slate-700">{t("verificationBullet1Title")}</strong> {t("verificationBullet1")}</span>
                   </li>
                   <li className="flex gap-3">
                     <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-teal-500" aria-hidden />
-                    <span><strong className="text-slate-700">Profile and specialty.</strong> Each specialist states their area (e.g. internal medicine, endocrinology) and experience, which we review.</span>
+                    <span><strong className="text-slate-700">{t("verificationBullet2Title")}</strong> {t("verificationBullet2")}</span>
                   </li>
                   <li className="flex gap-3">
                     <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-teal-500" aria-hidden />
-                    <span><strong className="text-slate-700">Listing on the marketplace.</strong> Only approved profiles appear as verified and can receive second-opinion requests.</span>
+                    <span><strong className="text-slate-700">{t("verificationBullet3Title")}</strong> {t("verificationBullet3")}</span>
                   </li>
                 </ul>
               </div>
@@ -473,11 +477,11 @@ function ProfilePageContent() {
                 <div className="mt-6 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-4 shadow-sm sm:px-5 sm:py-5">
                   <div className="flex items-center gap-2">
                     <Stethoscope className="h-5 w-5 text-teal-600" aria-hidden />
-                    <h3 className="text-base font-semibold text-slate-900">Your specialist profile</h3>
+                    <h3 className="text-base font-semibold text-slate-900">{t("yourSpecialistProfile")}</h3>
                   </div>
                   {specialistLoading ? (
                     <p className="mt-3 flex items-center gap-2 text-sm text-slate-500">
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Loading…
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {t("loading")}
                     </p>
                   ) : specialistProfile ? (
                     <div className="mt-4 space-y-4">
@@ -494,7 +498,7 @@ function ProfilePageContent() {
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
-                          <p className="font-medium text-slate-900">{specialistProfile.professionalTitle || "Specialist"}</p>
+                          <p className="font-medium text-slate-900">{specialistProfile.professionalTitle || t("specialist")}</p>
                           <p className="text-sm text-slate-600">{specialistProfile.specialty}</p>
                           {specialistProfile.status && (
                             <span
@@ -515,12 +519,12 @@ function ProfilePageContent() {
                       <div className="flex flex-wrap gap-2">
                         {specialistProfile.yearsOfExperience != null && (
                           <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800">
-                            {specialistProfile.yearsOfExperience} years of experience
+                            {t("yearsExperience", { count: specialistProfile.yearsOfExperience })}
                           </span>
                         )}
                         {specialistProfile.consultationPrice != null && specialistProfile.consultationPrice > 0 && (
                           <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800">
-                            ${specialistProfile.consultationPrice} per session
+                            {t("perSession", { amount: specialistProfile.consultationPrice })}
                           </span>
                         )}
                         {specialistProfile.languages?.length ? (
@@ -539,7 +543,7 @@ function ProfilePageContent() {
                               className="inline-flex items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-3.5 py-1.5 text-sm font-medium text-teal-700 transition hover:border-teal-300 hover:bg-teal-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1"
                             >
                               <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                              License document
+                              {t("licenseDocument")}
                             </a>
                           )}
                           {specialistProfile.degreeDocumentUrl && (
@@ -550,7 +554,7 @@ function ProfilePageContent() {
                               className="inline-flex items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-3.5 py-1.5 text-sm font-medium text-teal-700 transition hover:border-teal-300 hover:bg-teal-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1"
                             >
                               <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                              Degree document
+                              {t("degreeDocument")}
                             </a>
                           )}
                         </div>
@@ -558,7 +562,7 @@ function ProfilePageContent() {
                     </div>
                   ) : (
                     <p className="mt-3 text-sm text-slate-500">
-                      You are not registered as a specialist yet.
+                      {t("notRegisteredSpecialist")}
                     </p>
                   )}
                   {!specialistLoading && (
@@ -569,14 +573,14 @@ function ProfilePageContent() {
                           onClick={() => setUpdateModalOpen(true)}
                           className="mt-4 inline-block text-sm font-medium text-teal-600 hover:text-teal-700 focus:outline-none focus-visible:underline"
                         >
-                          Update specialist profile
+                          {t("updateSpecialistProfile")}
                         </button>
                       ) : (
                         <Link
                           href="/profile/specialist-onboarding"
                           className="mt-4 inline-block text-sm font-medium text-teal-600 hover:text-teal-700 focus:outline-none focus-visible:underline"
                         >
-                          Apply as a specialist →
+                          {t("applyAsSpecialist")}
                         </Link>
                       )}
                     </>
@@ -600,13 +604,13 @@ function ProfilePageContent() {
                   <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
                     <div className="flex items-center justify-between gap-4">
                       <h2 id="update-specialist-title" className="text-lg font-semibold text-slate-900">
-                        Update specialist profile
+                        {t("updateModalTitle")}
                       </h2>
                       <button
                         type="button"
                         onClick={() => !updateSaving && setUpdateModalOpen(false)}
                         className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-                        aria-label="Close"
+                        aria-label={t("cancel")}
                       >
                         <X className="h-5 w-5" />
                       </button>
@@ -614,7 +618,7 @@ function ProfilePageContent() {
                     <form onSubmit={handleUpdateSpecialistSubmit} className="mt-4 space-y-4">
                       <div>
                         <label htmlFor="update-professionalTitle" className="block text-sm font-medium text-slate-700">
-                          Professional title
+                          {t("professionalTitle")}
                         </label>
                         <input
                           id="update-professionalTitle"
@@ -626,7 +630,7 @@ function ProfilePageContent() {
                       </div>
                       <div>
                         <label htmlFor="update-specialty" className="block text-sm font-medium text-slate-700">
-                          Specialty
+                          {t("specialty")}
                         </label>
                         <input
                           id="update-specialty"
@@ -638,7 +642,7 @@ function ProfilePageContent() {
                       </div>
                       <div>
                         <label htmlFor="update-biography" className="block text-sm font-medium text-slate-700">
-                          Biography
+                          {t("biography")}
                         </label>
                         <textarea
                           id="update-biography"
@@ -651,7 +655,7 @@ function ProfilePageContent() {
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label htmlFor="update-yearsOfExperience" className="block text-sm font-medium text-slate-700">
-                            Years of experience
+                            {t("yearsOfExperience")}
                           </label>
                           <input
                             id="update-yearsOfExperience"
@@ -664,7 +668,7 @@ function ProfilePageContent() {
                         </div>
                         <div>
                           <label htmlFor="update-consultationPrice" className="block text-sm font-medium text-slate-700">
-                            Consultation price ($)
+                            {t("consultationPrice")}
                           </label>
                           <input
                             id="update-consultationPrice"
@@ -678,19 +682,19 @@ function ProfilePageContent() {
                       </div>
                       <div>
                         <label htmlFor="update-languages" className="block text-sm font-medium text-slate-700">
-                          Languages (comma-separated)
+                          {t("languagesComma")}
                         </label>
                         <input
                           id="update-languages"
                           name="languages"
                           type="text"
                           defaultValue={specialistProfile.languages?.join(", ") ?? ""}
-                          placeholder="English, Spanish"
+                          placeholder={t("languagesPlaceholder")}
                           className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-teal-500"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-slate-700">Profile image</label>
+                        <label className="block text-sm font-medium text-slate-700">{t("profileImage")}</label>
                         <div className="mt-1 flex items-center gap-4">
                           <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100">
                             {specialistProfile.profileImageUrl ? (
@@ -708,7 +712,7 @@ function ProfilePageContent() {
                             )}
                           </div>
                           <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
-                            Change photo
+                            {t("changePhoto")}
                             <input
                               type="file"
                               name="image"
@@ -729,13 +733,13 @@ function ProfilePageContent() {
                         {updateImageName && (
                           <p className="mt-1.5 flex items-center gap-1.5 text-sm text-emerald-600">
                             <Check className="h-4 w-4 shrink-0" />
-                            Loaded: {updateImageName}
+                            {t("loaded")} {updateImageName}
                           </p>
                         )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700">
-                          <IdCard className="inline h-4 w-4 align-text-bottom" /> License document
+                          <IdCard className="inline h-4 w-4 align-text-bottom" /> {t("licenseDocument")}
                         </label>
                         <div className="mt-1 flex flex-wrap items-center gap-2">
                           {specialistProfile.licenseDocumentUrl && (
@@ -745,11 +749,11 @@ function ProfilePageContent() {
                               rel="noopener noreferrer"
                               className="text-xs font-medium text-teal-600 hover:text-teal-700"
                             >
-                              Current document →
+                              {t("currentDocument")}
                             </a>
                           )}
                           <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
-                            {specialistProfile.licenseDocumentUrl ? "Replace file" : "Upload file"}
+                            {specialistProfile.licenseDocumentUrl ? t("replaceFile") : t("uploadFile")}
                             <input
                               type="file"
                               name="cedula"
@@ -762,13 +766,13 @@ function ProfilePageContent() {
                         {updateLicenseName && (
                           <p className="mt-1.5 flex items-center gap-1.5 text-sm text-emerald-600">
                             <Check className="h-4 w-4 shrink-0" />
-                            Loaded: {updateLicenseName}
+                            {t("loaded")} {updateLicenseName}
                           </p>
                         )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700">
-                          <FileCheck className="inline h-4 w-4 align-text-bottom" /> Degree document
+                          <FileCheck className="inline h-4 w-4 align-text-bottom" /> {t("degreeDocument")}
                         </label>
                         <div className="mt-1 flex flex-wrap items-center gap-2">
                           {specialistProfile.degreeDocumentUrl && (
@@ -778,11 +782,11 @@ function ProfilePageContent() {
                               rel="noopener noreferrer"
                               className="text-xs font-medium text-teal-600 hover:text-teal-700"
                             >
-                              Current document →
+                              {t("currentDocument")}
                             </a>
                           )}
                           <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
-                            {specialistProfile.degreeDocumentUrl ? "Replace file" : "Upload file"}
+                            {specialistProfile.degreeDocumentUrl ? t("replaceFile") : t("uploadFile")}
                             <input
                               type="file"
                               name="titleDocument"
@@ -795,7 +799,7 @@ function ProfilePageContent() {
                         {updateDegreeName && (
                           <p className="mt-1.5 flex items-center gap-1.5 text-sm text-emerald-600">
                             <Check className="h-4 w-4 shrink-0" />
-                            Loaded: {updateDegreeName}
+                            {t("loaded")} {updateDegreeName}
                           </p>
                         )}
                       </div>
@@ -811,7 +815,7 @@ function ProfilePageContent() {
                           disabled={updateSaving}
                           className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                         >
-                          Cancel
+                          {t("cancel")}
                         </button>
                         <button
                           type="submit"
@@ -821,10 +825,10 @@ function ProfilePageContent() {
                           {updateSaving ? (
                             <>
                               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                              Saving…
+                              {t("saving")}
                             </>
                           ) : (
-                            "Save changes"
+                            t("saveChanges")
                           )}
                         </button>
                       </div>
@@ -848,25 +852,25 @@ function ProfilePageContent() {
                   <CreditCard className="h-5 w-5 text-sky-700 sm:h-6 sm:w-6" aria-hidden />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Payments & balance</h2>
-                  <p className="mt-0.5 text-sm text-slate-500">Receive USDT and withdraw to your preferred network.</p>
+                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">{t("paymentsBalance")}</h2>
+                  <p className="mt-0.5 text-sm text-slate-500">{t("paymentsBalanceDesc")}</p>
                 </div>
               </div>
 
               {walletId && accountExistsOnChain === false && (
                 <div className="mt-4 rounded-2xl border border-amber-200/80 bg-amber-50/60 p-4 shadow-sm sm:p-6">
-                  <h3 className="text-base font-semibold text-amber-900 sm:text-lg">Activate your payment account</h3>
+                  <h3 className="text-base font-semibold text-amber-900 sm:text-lg">{t("activatePaymentAccount")}</h3>
                   <p className="mt-1 text-sm text-amber-800">
-                    Your NEAR account must receive a small amount of NEAR first (at least {MIN_NEAR_TO_CREATE_IMPLICIT} NEAR) so it exists on-chain. Then you can receive USDT and withdraw.
+                    {t("activateAccountDesc", { min: MIN_NEAR_TO_CREATE_IMPLICIT })}
                   </p>
                   {isFunding ? (
                     <p className="mt-4 flex items-center gap-2 text-sm font-medium text-amber-900">
                       <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden />
-                      Activating your account…
+                      {t("activatingAccount")}
                     </p>
                   ) : (
                     <>
-                      <p className="mt-3 text-xs font-medium text-amber-800">Send NEAR to this address</p>
+                      <p className="mt-3 text-xs font-medium text-amber-800">{t("sendNearTo")}</p>
                       <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                         <code className="max-w-full break-all rounded-lg bg-white px-3 py-2 font-mono text-xs text-slate-800 shadow-sm sm:text-sm">
                           {walletId}
@@ -876,7 +880,7 @@ function ProfilePageContent() {
                           onClick={handleCopyFundAddress}
                           className="flex shrink-0 items-center gap-2 self-start rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                         >
-                          {copiedFundAddress ? <><Check className="h-4 w-4 text-emerald-600" aria-hidden /> Copied</> : <><Copy className="h-4 w-4" aria-hidden /> Copy</>}
+                          {copiedFundAddress ? <><Check className="h-4 w-4 text-emerald-600" aria-hidden /> {t("copied")}</> : <><Copy className="h-4 w-4" aria-hidden /> {t("copy")}</>}
                         </button>
                         <button
                           type="button"
@@ -884,7 +888,7 @@ function ProfilePageContent() {
                           disabled={isFunding}
                           className="flex shrink-0 items-center gap-2 self-start rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                         >
-                          {isFunding ? "Checking…" : "I've sent NEAR — refresh"}
+                          {isFunding ? t("checking") : t("sentNearRefresh")}
                         </button>
                       </div>
                       {NEAR_NETWORK === "testnet" && (
@@ -894,11 +898,11 @@ function ProfilePageContent() {
                           rel="noopener noreferrer"
                           className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-amber-800 underline hover:text-amber-900"
                         >
-                          Get test NEAR from faucet <ExternalLink className="h-4 w-4" />
+                          {t("getTestNear")} <ExternalLink className="h-4 w-4" />
                         </a>
                       )}
                       {NEAR_NETWORK === "mainnet" && (
-                        <p className="mt-2 text-xs text-amber-800">Send NEAR from an exchange or another wallet to the address above.</p>
+                        <p className="mt-2 text-xs text-amber-800">{t("sendNearFromExchange")}</p>
                       )}
                     </>
                   )}
@@ -919,9 +923,9 @@ function ProfilePageContent() {
                         type="button"
                         onClick={refreshBalance}
                         disabled={balanceLoading || !walletId}
-                        title="Refresh balance"
+                        title={t("refreshBalanceTitle")}
                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-                        aria-label="Refresh balance"
+                        aria-label={t("refreshBalanceTitle")}
                       >
                         <RefreshCw className={`h-4 w-4 ${balanceLoading ? "animate-spin" : ""}`} aria-hidden />
                       </button>
@@ -936,16 +940,16 @@ function ProfilePageContent() {
                       usdtBalance ?? "0.00"
                     )}
                   </p>
-                  <p className="mt-1 text-sm text-slate-500">Stablecoin for payments</p>
-                  <p className="mt-0.5 text-xs text-slate-400">Available balance</p>
+                  <p className="mt-1 text-sm text-slate-500">{t("stablecoinForPayments")}</p>
+                  <p className="mt-0.5 text-xs text-slate-400">{t("availableBalance")}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm sm:rounded-3xl sm:p-6">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500/20 to-sky-500/20 sm:h-12 sm:w-12 sm:rounded-2xl">
                     <Coins className="h-5 w-5 text-teal-800 sm:h-6 sm:w-6" aria-hidden />
                   </div>
                   <p className="mt-4 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">VDOC</p>
-                  <p className="mt-1 text-sm text-slate-500">Veridoc points</p>
-                  <p className="mt-0.5 text-xs text-slate-400">Coming soon</p>
+                  <p className="mt-1 text-sm text-slate-500">{t("veridocPoints")}</p>
+                  <p className="mt-0.5 text-xs text-slate-400">{t("comingSoon")}</p>
                 </div>
               </div>
 
@@ -954,22 +958,22 @@ function ProfilePageContent() {
                 <div className="mt-6 rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm sm:mt-8 sm:p-6">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <h3 className="text-base font-semibold text-slate-900 sm:text-lg">Receive USDT</h3>
-                      <p className="mt-1 text-sm text-slate-600">Your USDT balance is held in your NEAR account. Send USDT (NEP-141) to this address to add funds.</p>
+                      <h3 className="text-base font-semibold text-slate-900 sm:text-lg">{t("receiveUsdt")}</h3>
+                      <p className="mt-1 text-sm text-slate-600">{t("receiveUsdtDesc")}</p>
                     </div>
                     <button
                       type="button"
                       onClick={refreshBalance}
                       disabled={balanceLoading || isTxInProgress}
                       className="flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-                      title="Refresh balance after depositing"
+                      title={t("refreshBalanceTitle")}
                     >
                       <RefreshCw className={`h-4 w-4 ${balanceLoading ? "animate-spin" : ""}`} aria-hidden />
-                      Refresh balance
+                      {t("refreshBalance")}
                     </button>
                   </div>
                   <div className="mt-4 rounded-xl border border-slate-200/80 bg-slate-50/60 p-4">
-                    <p className="text-xs font-medium text-slate-500">Your NEAR account (receives USDT)</p>
+                    <p className="text-xs font-medium text-slate-500">{t("yourNearAccount")}</p>
                     <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                       <code className="max-w-full break-all rounded-lg bg-white px-3 py-2 font-mono text-xs text-slate-800 shadow-sm sm:text-sm">
                         {walletId}
@@ -979,9 +983,9 @@ function ProfilePageContent() {
                         onClick={handleCopyReceiveAddress}
                         disabled={isTxInProgress}
                         className="flex shrink-0 items-center gap-2 self-start rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-                        title="Copy address"
+                        title={t("copyAddress")}
                       >
-                        {copiedReceiveAddress ? <><Check className="h-4 w-4 text-emerald-600" aria-hidden /> Copied</> : <><Copy className="h-4 w-4" aria-hidden /> Copy</>}
+                        {copiedReceiveAddress ? <><Check className="h-4 w-4 text-emerald-600" aria-hidden /> {t("copied")}</> : <><Copy className="h-4 w-4" aria-hidden /> {t("copy")}</>}
                       </button>
                     </div>
                   </div>
@@ -991,17 +995,17 @@ function ProfilePageContent() {
               {/* Withdraw — only when account exists on-chain */}
               {walletId && nearAccount && accountExistsOnChain !== false && (
                 <div className={`mt-6 rounded-2xl border bg-white/90 p-4 shadow-sm sm:mt-8 sm:p-6 ${isTxInProgress ? "border-teal-200/80 bg-teal-50/30" : "border-slate-200/80"}`}>
-                  <h3 className="text-base font-semibold text-slate-900 sm:text-lg">Withdraw</h3>
-                  <p className="mt-1 text-sm text-slate-600">Send USDT from your NEAR account to another NEAR account.</p>
+                  <h3 className="text-base font-semibold text-slate-900 sm:text-lg">{t("withdraw")}</h3>
+                  <p className="mt-1 text-sm text-slate-600">{t("withdrawDesc")}</p>
                   {isTxInProgress && (
                     <p className="mt-2 flex items-center gap-2 text-sm text-teal-700" role="status">
                       <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden />
-                      Transaction in progress — please wait.
+                      {t("transactionInProgress")}
                     </p>
                   )}
                   <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
                     <label className="flex flex-col gap-1.5 min-w-0 flex-1 sm:max-w-[11rem]">
-                      <span className="text-xs font-medium text-slate-500">Amount (USDT)</span>
+                      <span className="text-xs font-medium text-slate-500">{t("amountUsdt")}</span>
                       <div className="flex gap-2">
                         <input
                           type="number"
@@ -1017,18 +1021,18 @@ function ProfilePageContent() {
                           type="button"
                           onClick={handleMaxAmount}
                           disabled={isTxInProgress || balanceLoading || !usdtBalance || usdtBalance === "0.00"}
-                          title="Use full balance"
+                          title={t("useFullBalance")}
                           className="shrink-0 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                         >
-                          Max
+                          {t("max")}
                         </button>
                       </div>
                       {usdtBalance != null && !balanceLoading && (
-                        <p className="text-xs text-slate-400">Available: {usdtBalance} USDT</p>
+                        <p className="text-xs text-slate-400">{t("available")} {usdtBalance} USDT</p>
                       )}
                     </label>
                     <label className="flex flex-col gap-1.5 min-w-0 flex-1 sm:min-w-[12rem] sm:max-w-xs">
-                      <span className="text-xs font-medium text-slate-500">Destination NEAR account</span>
+                      <span className="text-xs font-medium text-slate-500">{t("destinationNearAccount")}</span>
                       <input
                         type="text"
                         placeholder={walletId}
@@ -1044,7 +1048,7 @@ function ProfilePageContent() {
                       onClick={handleWithdraw}
                       className="flex min-h-[2.75rem] items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 active:bg-teal-800"
                     >
-                      {withdrawLoading ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Sending…</> : "Withdraw"}
+                      {withdrawLoading ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {t("sending")}</> : t("withdraw")}
                     </button>
                   </div>
                   {withdrawError && <p className="mt-3 text-sm text-red-600" role="alert">{withdrawError}</p>}
@@ -1052,7 +1056,7 @@ function ProfilePageContent() {
               )}
 
               <p className="mt-6 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">
-                Your USDT balance is held in your NEAR account. Receive USDT by sending it to your address above; withdraw to any other NEAR account from the form above.
+                {t("balanceDisclaimer")}
               </p>
             </section>
           )}
@@ -1063,11 +1067,12 @@ function ProfilePageContent() {
 }
 
 function ProfileLoading() {
+  const t = useTranslations("profile");
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f6fbfb] px-4">
       <div className="flex flex-col items-center gap-3">
         <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-teal-500" aria-hidden />
-        <p className="text-sm text-slate-500">Loading…</p>
+        <p className="text-sm text-slate-500">{t("loading")}</p>
       </div>
     </div>
   );

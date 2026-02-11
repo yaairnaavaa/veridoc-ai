@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { analyzeWithNearAI } from "@/app/actions/analyze-near";
 
 /**
@@ -10,6 +11,7 @@ import { analyzeWithNearAI } from "@/app/actions/analyze-near";
  * y lo envía a NEAR AI para análisis.
  */
 export const NearAIAnalysis = () => {
+  const t = useTranslations("stepResults");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<{
     success: boolean;
@@ -27,7 +29,7 @@ export const NearAIAnalysis = () => {
     } catch (error: any) {
       setResult({
         success: false,
-        error: error.message || "Error desconocido al analizar"
+        error: error.message || t("unknownError")
       });
     } finally {
       setIsLoading(false);

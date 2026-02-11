@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getSpecialistByIdentifierFromApi } from "@/app/marketplace/specialists";
+import { getSpecialistByIdentifierFromApi } from "@/lib/marketplace/specialists";
 
 /**
  * GET /api/specialists/identifier/:identifier

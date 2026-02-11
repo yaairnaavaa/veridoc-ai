@@ -1,11 +1,13 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { NavBar } from "@/components/NavBar";
 import { SpecialistOnboardingForm } from "@/components/specialist/SpecialistOnboardingForm";
 import { ShieldCheck } from "lucide-react";
 import { useState, useEffect } from "react";
 
 export default function SpecialistOnboardingPage() {
+  const t = useTranslations("profileOnboarding");
   const [randomWallet, setRandomWallet] = useState("");
 
   const generateNewId = () => {
@@ -31,10 +33,10 @@ export default function SpecialistOnboardingPage() {
           <div className="text-center mb-8 space-y-2">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-200/60 bg-teal-50/50 px-3 py-1 text-xs font-medium text-teal-700 backdrop-blur">
               <ShieldCheck className="w-3 h-3" />
-              Specialist Onboarding
+              {t("badge")}
             </span>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-              Register New Specialist
+              {t("registerNewSpecialist")}
             </h1>
             
           </div>

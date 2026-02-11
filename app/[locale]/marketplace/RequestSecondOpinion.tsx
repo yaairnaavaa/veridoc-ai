@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { getAnalyses, type SavedAnalysis } from "@/lib/veridoc/analysesStore";
 import { FileText, Send, Loader2 } from "lucide-react";
 

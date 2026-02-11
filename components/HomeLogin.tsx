@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState, useRef, useEffect } from "react";
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { usePrivy, useLogin, useLoginWithOAuth } from "@privy-io/react-auth";
 import { LogOut, Copy, Fingerprint, Mail, Wallet } from "lucide-react";
 import { useNEAR } from "@/context/NearContext";

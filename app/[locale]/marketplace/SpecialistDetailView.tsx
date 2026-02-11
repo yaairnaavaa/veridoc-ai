@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { NavBar } from "@/components/NavBar";
 import {
   Star,
@@ -11,8 +11,8 @@ import {
   ChevronLeft,
   ExternalLink,
 } from "lucide-react";
-import { RequestSecondOpinion } from "@/app/marketplace/RequestSecondOpinion";
-import type { UiSpecialist } from "@/app/marketplace/specialists";
+import { RequestSecondOpinion } from "./RequestSecondOpinion";
+import type { UiSpecialist } from "@/lib/marketplace/specialists";
 
 export function SpecialistDetailView({ specialist }: { specialist: UiSpecialist }) {
   return (

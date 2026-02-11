@@ -1,8 +1,9 @@
+import { getTranslations } from "next-intl/server";
 import { NavBar } from "@/components/NavBar";
-import Link from "next/link";
-import { getSpecialistsFromApi } from "@/app/marketplace/specialists";
-import { HydrateSpecialists } from "@/app/marketplace/HydrateSpecialists";
-import { MarketplaceWithFilters } from "@/app/marketplace/MarketplaceWithFilters";
+import { Link } from "@/i18n/navigation";
+import { getSpecialistsFromApi } from "@/lib/marketplace/specialists";
+import { HydrateSpecialists } from "./HydrateSpecialists";
+import { MarketplaceWithFilters } from "./MarketplaceWithFilters";
 
 // ----------------------------------------------------------------------
 // MAIN PAGE COMPONENT
@@ -20,6 +21,7 @@ export default async function MarketplacePage(props: PageProps) {
   const fromWizard = from === "wizard" || from === "analisis";
 
   const specialists = await getSpecialistsFromApi();
+  const t = await getTranslations("marketplace");
 
   return (
     <>
@@ -37,13 +39,13 @@ export default async function MarketplacePage(props: PageProps) {
           {fromWizard && (
             <section className="mb-6 rounded-2xl border border-teal-200/60 bg-teal-50/80 px-4 py-4 backdrop-blur">
               <p className="text-sm font-medium text-teal-800">
-                Estás aquí para solicitar una segunda opinión. Elige un especialista, paga con USDT y envía tus datos de forma segura.{" "}
+                {t("fromWizardBanner")}{" "}
                 {analysisId && (
-                  <span className="text-teal-700">Tu análisis reciente se puede enviar al médico que elijas.</span>
+                  <span className="text-teal-700">{t("fromWizardAnalysis")}</span>
                 )}
               </p>
               <Link href="/analisis" className="mt-2 inline-block text-sm font-semibold text-teal-700 underline hover:text-teal-800">
-                Ver todos mis análisis
+                {t("viewAllAnalyses")}
               </Link>
             </section>
           )}
@@ -54,7 +56,7 @@ export default async function MarketplacePage(props: PageProps) {
           {/* Trust Banner */}
           <section className="mt-12 rounded-2xl border border-slate-200/60 bg-white/50 px-6 py-8 text-center backdrop-blur">
             <p className="text-sm font-medium text-slate-600">
-              All specialists are verified. Get a second opinion on any blood panel—CBC, metabolic, lipids, thyroid, and more. Pay in USDT.
+              {t("trustBanner")}
             </p>
           </section>
         </main>

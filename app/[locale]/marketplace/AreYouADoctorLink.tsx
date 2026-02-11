@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { UserPlus } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 

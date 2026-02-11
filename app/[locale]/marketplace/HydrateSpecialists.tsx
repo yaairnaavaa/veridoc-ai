@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useMarketplace } from "@/context/MarketplaceContext";
-import type { UiSpecialist } from "@/app/marketplace/specialists";
+import type { UiSpecialist } from "@/lib/marketplace/specialists";
 
 export function HydrateSpecialists({ specialists }: { specialists: UiSpecialist[] }) {
   const { setSpecialists } = useMarketplace();

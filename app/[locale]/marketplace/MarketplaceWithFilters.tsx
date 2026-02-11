@@ -2,11 +2,12 @@
 
 import { useMemo, useState, useCallback } from "react";
 import { Filter, UserPlus } from "lucide-react";
-import Link from "next/link";
-import { SpecialistCard } from "@/app/marketplace/SpecialistCard";
-import { AreYouADoctorLink } from "@/app/marketplace/AreYouADoctorLink";
-import { FilterModal, DEFAULT_FILTERS, type MarketplaceFilters } from "@/app/marketplace/FilterModal";
-import type { UiSpecialist } from "@/app/marketplace/specialists";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
+import { SpecialistCard } from "./SpecialistCard";
+import { AreYouADoctorLink } from "./AreYouADoctorLink";
+import { FilterModal, DEFAULT_FILTERS, type MarketplaceFilters } from "./FilterModal";
+import type { UiSpecialist } from "@/lib/marketplace/specialists";
 
 function applyFilters(specialists: UiSpecialist[], f: MarketplaceFilters): UiSpecialist[] {
   return specialists.filter((s) => {
@@ -44,6 +45,7 @@ type MarketplaceWithFiltersProps = {
 export function MarketplaceWithFilters({
   specialists,
 }: MarketplaceWithFiltersProps) {
+  const t = useTranslations("marketplace");
   const [modalOpen, setModalOpen] = useState(false);
   const [filters, setFilters] = useState<MarketplaceFilters>(DEFAULT_FILTERS);
 
@@ -62,13 +64,13 @@ export function MarketplaceWithFilters({
       <section className="mb-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
         <div className="max-w-2xl">
           <span className="mb-3 inline-block rounded-full border border-teal-200/60 bg-teal-50/50 px-3 py-1 text-xs font-medium uppercase tracking-wider text-teal-700 backdrop-blur">
-            Second opinion on blood work
+            {t("badge")}
           </span>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-            Verified specialists for your blood studies
+            {t("title")}
           </h1>
           <p className="mt-3 text-lg text-slate-600">
-            Get a professional second opinion on your blood panels. Upload your results and have a verified specialist review and explain them—paid in USDT.
+            {t("subtitle")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -83,7 +85,7 @@ export function MarketplaceWithFilters({
             }`}
           >
             <Filter className="h-4 w-4" />
-            Filter
+            {t("filter")}
             {active && (
               <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-teal-200/80 text-xs font-bold text-teal-800">
                 !
@@ -104,7 +106,7 @@ export function MarketplaceWithFilters({
 
       {active && (
         <p className="mb-4 text-sm text-slate-600">
-          Showing {filtered.length} of {specialists.length} specialists
+          {t("showingCount", { filtered: filtered.length, total: specialists.length })}
         </p>
       )}
 
@@ -116,13 +118,13 @@ export function MarketplaceWithFilters({
         </section>
       ) : specialists.length > 0 ? (
         <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/40 py-16 text-center">
-          <p className="text-slate-600">No specialists match the current filters.</p>
+          <p className="text-slate-600">{t("noMatch")}</p>
           <button
             type="button"
             onClick={() => setFilters(DEFAULT_FILTERS)}
             className="mt-4 rounded-xl bg-teal-100 px-4 py-2 text-sm font-semibold text-teal-800 hover:bg-teal-200"
           >
-            Clear filters
+            {t("clearFilters")}
           </button>
         </div>
       ) : (
@@ -130,15 +132,15 @@ export function MarketplaceWithFilters({
           <div className="mb-4 rounded-full bg-slate-100 p-4">
             <UserPlus className="h-8 w-8 text-slate-400" />
           </div>
-          <h3 className="text-lg font-semibold text-slate-900">No specialists found yet</h3>
+          <h3 className="text-lg font-semibold text-slate-900">{t("noSpecialistsYet")}</h3>
           <p className="text-slate-500 mx-auto mt-2 max-w-md">
-            Our directory is growing. Be the first specialist to join our network.
+            {t("directoryGrowing")}
           </p>
           <Link
             href="/profile/specialist-onboarding"
             className="mt-6 font-semibold text-teal-700 hover:underline"
           >
-            Register as a Specialist
+            {t("registerSpecialist")}
           </Link>
         </div>
       )}

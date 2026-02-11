@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { PrivyProvider } from "@/components/PrivyProvider";
-import { NearProvider } from "@/context/NearContext";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -20,19 +20,28 @@ export const metadata: Metadata = {
     "Upload blood diagnostics and receive private, medical-grade AI explanations without exposing raw data.",
 };
 
-export default function RootLayout({
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <PrivyProvider>
-          <NearProvider>{children}</NearProvider>
-        </PrivyProvider>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          {children}
+        </NextIntlClientProvider>
       </body>
     </html>
   );

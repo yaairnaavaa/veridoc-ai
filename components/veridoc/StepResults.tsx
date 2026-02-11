@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useLocale } from "next-intl";
+import { useTranslations } from "next-intl";
 import { jsPDF } from "jspdf";
 import type { DiagnosisMode } from "@/lib/veridoc/localInference";
 import { generateLocalRecommendation } from "@/lib/veridoc/localInference";
@@ -35,6 +37,9 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
      error?: string;
    } | null>(null);
 
+   const locale = useLocale() as "es" | "en";
+   const t = useTranslations("stepResults");
+   const tCommon = useTranslations("common");
    const diagnosisForAI =
      diagnosisMode === "text" && diagnosisText?.trim() ? diagnosisText.trim() : undefined;
 
@@ -44,13 +49,13 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
        setNearLoading(true);
        setNearResult(null);
        try {
-         const response = await analyzeWithNearAI(diagnosisForAI);
+         const response = await analyzeWithNearAI(diagnosisForAI, locale);
          if (!cancelled) setNearResult(response);
        } catch (err: unknown) {
          if (!cancelled) {
            setNearResult({
              success: false,
-             error: err instanceof Error ? err.message : "Error al generar la recomendación",
+             error: err instanceof Error ? err.message : t("errorGenerating"),
            });
          }
        } finally {
@@ -58,7 +63,7 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
        }
      })();
      return () => { cancelled = true; };
-   }, [diagnosisForAI]);
+   }, [diagnosisForAI, locale]);
 
    const localReport = useMemo(
      () =>
@@ -153,31 +158,31 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
    };
 
    const diagnosisLabel =
-     diagnosisMode === "text" ? "Diagnosis notes" : "No diagnosis";
+     diagnosisMode === "text" ? t("diagnosisNotes") : t("noDiagnosis");
 
   return (
     <section className="grid gap-6 pb-24 sm:pb-0">
       <div className="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm backdrop-blur sm:p-6">
          <div className="flex flex-col gap-2">
            <h2 className="text-xl font-semibold text-slate-900">
-             Recommendation report
+             {t("title")}
            </h2>
            <p className="text-sm text-slate-600">
-             Generated locally from your uploads. Nothing leaves your device.
+             {t("subtitle")}
            </p>
          </div>
 
          <div className="mt-5 grid gap-4 rounded-2xl border border-slate-200/70 bg-white/80 p-4 text-sm text-slate-700">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
              <div>
-               <p className="text-xs text-slate-500">Lab file</p>
+               <p className="text-xs text-slate-500">{t("labFile")}</p>
                <p className="font-semibold text-slate-900">{labsFile.name}</p>
                <p className="text-xs text-slate-500">
-                 {labsFile.type || "Unknown type"} | {formatBytes(labsFile.size)}
+                 {labsFile.type || t("unknownType")} | {formatBytes(labsFile.size)}
                </p>
              </div>
              <div>
-               <p className="text-xs text-slate-500">Diagnosis input</p>
+               <p className="text-xs text-slate-500">{t("diagnosisInput")}</p>
                <p className="font-semibold text-slate-900">{diagnosisLabel}</p>
              </div>
            </div>
@@ -189,18 +194,18 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
                className="flex flex-col items-center gap-4 rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-6 py-12"
                role="status"
                aria-live="polite"
-               aria-label="Generating recommendation"
+               aria-label={t("generating")}
              >
                <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-400 border-t-slate-700" />
                <div className="space-y-1 text-center">
                  <p className="text-sm font-semibold text-slate-700">
-                   Preparing your recommendation…
+                   {t("preparing")}
                  </p>
                  <p className="text-xs text-slate-500 max-w-sm">
-                   Analyzing your lab results. This usually takes a few seconds.
+                   {t("analyzing")}
                  </p>
                </div>
-               <p className="text-xs text-slate-400">Powered by NEAR AI · Private Inference</p>
+               <p className="text-xs text-slate-400">{t("poweredBy")}</p>
              </div>
            ) : null}
 
@@ -208,17 +213,17 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
              <>
                {isUsingFallback ? (
                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="alert">
-                   <p className="font-semibold">Recommendation could not be generated from your document.</p>
-                   <p className="mt-1 text-xs text-amber-700">
-                     Below is a general summary, not an analysis of your specific results. This can happen if the document text could not be extracted or the analysis service was unavailable. Try uploading again or check that the PDF has selectable text.
-                   </p>
+                 <p className="font-semibold">{t("fallbackTitle")}</p>
+                  <p className="mt-1 text-xs text-amber-700">
+                     {t("fallbackHint")}
+                  </p>
                    {nearResult && !nearResult.success && nearResult.error ? (
                      <p className="mt-2 text-xs font-medium text-amber-800">Details: {nearResult.error}</p>
                    ) : null}
                  </div>
                ) : null}
                <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5">
-                 <h3 className="text-sm font-semibold text-slate-900">Summary</h3>
+                 <h3 className="text-sm font-semibold text-slate-900">{t("summary")}</h3>
                  <p className="mt-2 text-sm leading-7 text-slate-600">
                    {report.summary}
                  </p>
@@ -226,7 +231,7 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
 
                <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5">
                  <h3 className="text-sm font-semibold text-slate-900">
-                   Key items to review
+                   {t("keyItems")}
                  </h3>
                  <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600">
                    {report.keyItems.map((item) => (
@@ -237,12 +242,12 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
 
                <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5">
                  <h3 className="text-sm font-semibold text-slate-900">
-                   Next steps &amp; questions
+                   {t("nextStepsQuestions")}
                  </h3>
                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
                    <div>
                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                       Next steps
+                       {t("nextSteps")}
                      </p>
                      <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-slate-600">
                        {report.nextSteps.map((item) => (
@@ -252,7 +257,7 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
                    </div>
                    <div>
                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                       Questions to ask
+                       {t("questionsToAsk")}
                      </p>
                      <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-slate-600">
                        {report.questions.map((item) => (
@@ -266,20 +271,20 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
                {report.extraInfo ? (
                  <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-5">
                    <h3 className="text-sm font-semibold text-slate-900">
-                     Additional information
+                     {t("additionalInfo")}
                    </h3>
                    <div className="mt-2 text-sm leading-7 text-slate-600 whitespace-pre-wrap">
                      {report.extraInfo}
                    </div>
                    <p className="mt-3 text-right text-xs text-slate-400">
-                     Powered by NEAR AI · Private Inference
+                     {t("poweredBy")}
                    </p>
                  </div>
                ) : null}
 
                {nearResult?.success && !report.extraInfo ? (
                  <p className="text-right text-xs text-slate-400">
-                   Powered by NEAR AI · Private Inference
+                   {t("poweredBy")}
                  </p>
                ) : null}
              </>
@@ -291,7 +296,7 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
 
           <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Session actions
+              {t("sessionActions")}
             </p>
             {onRequestSecondOpinion ? (
               <button
@@ -308,7 +313,7 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
                 }
                 className="mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-teal-600 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
               >
-                Solicitar segunda opinión
+                {t("requestSecondOpinion")}
               </button>
             ) : null}
             <button
@@ -316,7 +321,7 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
               onClick={handleDownload}
               className="mt-3 flex w-full items-center justify-center rounded-full bg-slate-900 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
             >
-              Download summary (PDF)
+              {t("downloadPdf")}
             </button>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <button
@@ -324,14 +329,14 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
                 onClick={onStartOver}
                 className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
               >
-                Start over
+                {t("startOver")}
               </button>
               <button
                 type="button"
                 onClick={onClearSession}
-                className="inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                className="inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
               >
-                Clear session
+                {t("clearSession")}
               </button>
             </div>
           </div>
@@ -345,7 +350,7 @@ import { analyzeWithNearAI, type NearReport } from "@/app/actions/analyze-near";
             onClick={onBack}
             className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
           >
-            Back
+            {tCommon("back")}
           </button>
         </div>
       </div>

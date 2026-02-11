@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getSpecialistByIdFromApi } from "@/app/marketplace/specialists";
+import { getSpecialistByIdFromApi } from "@/lib/marketplace/specialists";
 
 const getBaseUrl = () => process.env.SPECIALIST_VERIFICATION_API_URL?.replace(/\/$/, "");
 

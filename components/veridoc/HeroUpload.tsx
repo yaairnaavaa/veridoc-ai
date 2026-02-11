@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { useRouter } from "@/i18n/navigation";
 import { setPendingLabsFile } from "@/lib/veridoc/sessionStore";
 
 const PDF_MIME = "application/pdf";
@@ -27,14 +28,13 @@ export const HeroUpload = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const t = useTranslations("heroUpload");
   const validateFile = (file: File) => {
     if (file.type !== PDF_MIME) {
-      return "Please upload a PDF file. Only PDF lab reports are accepted.";
+      return t("pdfOnlyError");
     }
     if (file.size > MAX_FILE_BYTES) {
-      return `File is too large. Max size is ${formatBytes(
-        MAX_FILE_BYTES,
-      )}.`;
+      return t("tooLarge", { maxSize: formatBytes(MAX_FILE_BYTES) });
     }
     return null;
   };
@@ -90,17 +90,17 @@ export const HeroUpload = () => {
           className="hidden"
         />
         <p className="text-sm font-semibold text-slate-800 sm:text-sm">
-          Drag and drop your lab report (PDF)
+          {t("dragDrop")}
         </p>
         <p className="mt-1 text-xs text-slate-500 sm:mt-2">
-          PDF only. Max {formatBytes(MAX_FILE_BYTES)}.
+          {t("pdfOnly", { maxSize: formatBytes(MAX_FILE_BYTES) })}
         </p>
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
           className="mt-3 min-h-[44px] rounded-full border border-slate-200 bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.98] sm:mt-4 sm:min-h-0 sm:border-slate-200 sm:bg-white sm:px-4 sm:py-2 sm:text-xs sm:font-semibold sm:text-slate-700 sm:hover:border-slate-300 sm:hover:bg-white sm:hover:text-slate-900"
         >
-          Choose file
+          {t("chooseFile")}
         </button>
       </div>
 
@@ -111,7 +111,7 @@ export const HeroUpload = () => {
       ) : null}
 
       <p className="text-xs text-slate-500">
-        Runs locally. Nothing is uploaded or stored.
+        {t("runsLocally")}
       </p>
     </div>
   );

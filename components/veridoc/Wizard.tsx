@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import type { DiagnosisMode } from "@/lib/veridoc/localInference";
 import type { SavedReport } from "@/lib/veridoc/analysesStore";
 import { addAnalysis } from "@/lib/veridoc/analysesStore";
+import { addAnalysisIDB } from "@/lib/veridoc/idbStore";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 import { NavBar } from "@/components/NavBar";
 import { PrivacyBadge } from "@/components/veridoc/PrivacyBadge";
 import { StepDiagnosis } from "@/components/veridoc/StepDiagnosis";
@@ -22,6 +24,8 @@ type WizardState = {
   diagnosisText: string;
   /** Set when user goes to step 4 (second opinion); used for marketplace link */
   lastSavedAnalysisId: string | null;
+  isUploading: boolean;
+  extractedMarkdown: string | null;
 };
 
 type WizardAction =
@@ -30,6 +34,8 @@ type WizardAction =
   | { type: "setDiagnosisMode"; mode: DiagnosisMode }
   | { type: "setDiagnosisText"; text: string }
   | { type: "setLastSavedAnalysisId"; id: string | null }
+  | { type: "setUploading"; isUploading: boolean }
+  | { type: "setExtractedMarkdown"; markdown: string | null }
   | { type: "clearSession" };
 
 const initialState: WizardState = {
@@ -38,6 +44,8 @@ const initialState: WizardState = {
   diagnosisMode: "none",
   diagnosisText: "",
   lastSavedAnalysisId: null,
+  isUploading: false,
+  extractedMarkdown: null,
 };
 
 const reducer = (state: WizardState, action: WizardAction): WizardState => {
@@ -56,6 +64,10 @@ const reducer = (state: WizardState, action: WizardAction): WizardState => {
       return { ...state, diagnosisText: action.text };
     case "setLastSavedAnalysisId":
       return { ...state, lastSavedAnalysisId: action.id };
+    case "setUploading":
+      return { ...state, isUploading: action.isUploading };
+    case "setExtractedMarkdown":
+      return { ...state, extractedMarkdown: action.markdown };
     case "clearSession":
       return { ...initialState };
     default:
@@ -105,10 +117,28 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
     { id: 4, label: t("step4") },
   ];
 
-  const handleRequestSecondOpinion = (report: SavedReport) => {
+  const handleRequestSecondOpinion = async (report: SavedReport) => {
     if (!state.labsFile) return;
-    const saved = addAnalysis({
+
+    dispatch({ type: "setUploading", isUploading: true });
+    let pdfUrl: string | undefined;
+
+    try {
+      // Sube a Cloudinary antes de guardar
+      const uint8 = new Uint8Array(await state.labsFile.arrayBuffer());
+      const uploadedUrl = await uploadToCloudinary(
+        uint8,
+        state.labsFile.name,
+        state.labsFile.type || "application/pdf"
+      );
+      if (uploadedUrl) pdfUrl = uploadedUrl;
+    } catch (e) {
+      console.warn("Wizard: failed to upload PDF to Cloudinary.", e);
+    }
+
+    const analysisData = {
       labFileName: state.labsFile.name,
+      pdfUrl,
       report: {
         summary: report.summary,
         keyItems: report.keyItems,
@@ -117,7 +147,25 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
         extraInfo: report.extraInfo,
         disclaimer: report.disclaimer,
       },
-    });
+    };
+
+    // 1. Guardar metadatos en localStorage (para compatibilidad rápida con UI actual)
+    const saved = addAnalysis(analysisData);
+
+    // 2. Guardar en IndexedDB (soporta archivos binarios grandes)
+    try {
+      await addAnalysisIDB({
+        ...analysisData,
+        id: saved.id,
+        createdAt: saved.createdAt,
+        pdfFile: state.labsFile,
+      });
+      console.log("Wizard: Saved to IndexedDB successfully.");
+    } catch (err) {
+      console.error("Wizard: Failed to save to IndexedDB:", err);
+    }
+
+    dispatch({ type: "setUploading", isUploading: false });
     dispatch({ type: "setLastSavedAnalysisId", id: saved.id });
     dispatch({ type: "setStep", step: 4 });
   };
@@ -187,13 +235,12 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
                       <li
                         key={step.id}
                         aria-current={isActive ? "step" : undefined}
-                        className={`rounded-2xl border px-4 py-3 text-sm transition ${
-                          isActive
-                            ? "border-slate-900 bg-slate-900 text-white"
-                            : isComplete
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                              : "border-slate-200 bg-white/80 text-slate-600"
-                        }`}
+                        className={`rounded-2xl border px-4 py-3 text-sm transition ${isActive
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : isComplete
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-slate-200 bg-white/80 text-slate-600"
+                          }`}
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-semibold">{t("stepXofY", { current: step.id })}</span>
@@ -220,7 +267,13 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
                 onFileSelect={(file) =>
                   dispatch({ type: "setLabsFile", file })
                 }
-                onClear={() => dispatch({ type: "setLabsFile", file: null })}
+                onAnalysisComplete={(markdown) =>
+                  dispatch({ type: "setExtractedMarkdown", markdown })
+                }
+                onClear={() => {
+                  dispatch({ type: "setLabsFile", file: null });
+                  dispatch({ type: "setExtractedMarkdown", markdown: null });
+                }}
                 onContinue={handleContinueFromLabs}
               />
             ) : null}
@@ -233,7 +286,7 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
                   dispatch({ type: "setDiagnosisMode", mode })
                 }
                 onTextChange={(text) =>
-                  dispatch({ type: "setDiagnosisText", text })
+                  dispatch({ text, type: "setDiagnosisText" })
                 }
                 onBack={() => dispatch({ type: "setStep", step: 1 })}
                 onContinue={() => dispatch({ type: "setStep", step: 3 })}
@@ -246,6 +299,8 @@ export const Wizard = ({ initialLabsFile }: WizardProps) => {
                 diagnosisMode={state.diagnosisMode}
                 diagnosisText={state.diagnosisText}
                 formatBytes={formatBytes}
+                isUploading={state.isUploading}
+                extractedMarkdown={state.extractedMarkdown ?? undefined}
                 onBack={() => dispatch({ type: "setStep", step: 2 })}
                 onStartOver={handleClear}
                 onClearSession={handleClear}

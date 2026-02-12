@@ -142,7 +142,7 @@ export function SpecialistDetailView({ specialist }: { specialist: UiSpecialist 
           {/* Send analyses & request second opinion */}
           <section className="mt-8">
             <RequestSecondOpinion
-              specialistId={specialist.id}
+              specialistAccount={specialist.nearAddress || specialist.id}
               specialistName={specialist.name}
               priceUsdt={specialist.priceUsdt}
             />

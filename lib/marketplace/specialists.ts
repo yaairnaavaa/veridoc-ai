@@ -23,6 +23,13 @@ export type UiSpecialist = {
   licenseDocumentUrl?: string;
   /** URL to degree/title document (e.g. título) */
   degreeDocumentUrl?: string;
+  biography?: string;
+  nearAddress?: string;
+  professionalTitle?: string;
+  yearsOfExperience?: number;
+  consultationPrice?: number;
+  privyWallet?: string;
+  profileImageUrl?: string;
 };
 
 /** Shape of one specialist from the external verification API (GET /api/specialists) */
@@ -70,6 +77,13 @@ function mapApiSpecialistToUi(item: ApiSpecialist): UiSpecialist {
     isMock: false,
     licenseDocumentUrl: item.licenseDocumentUrl,
     degreeDocumentUrl: item.degreeDocumentUrl,
+    biography: item.biography,
+    nearAddress: item.nearAddress,
+    professionalTitle: item.professionalTitle,
+    yearsOfExperience: item.yearsOfExperience,
+    consultationPrice: item.consultationPrice,
+    privyWallet: item.privyWallet,
+    profileImageUrl: item.profileImageUrl,
   };
 }
 

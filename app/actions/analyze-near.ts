@@ -191,18 +191,17 @@ const NEAR_AI_API_URL = "https://cloud-api.near.ai/v1/chat/completions";
 const DEBUG_EXTRACTION_PATH = join(process.cwd(), 'debug_extraction.md');
 
 /**
- * Analiza el documento markdown local usando la API de NEAR AI
- *
- * Lee el archivo debug_extraction.md, lo envía a NEAR AI y devuelve la respuesta.
- * Si se proporciona diagnosisText, se incluye en el prompt para que la IA lo tenga en cuenta.
+ * Analiza el documento markdown usando la API de NEAR AI
  *
  * @param diagnosisText - Texto opcional con el diagnóstico o notas del paciente (paso 2 del wizard)
  * @param locale - Idioma para la respuesta: 'es' (español) o 'en' (inglés). Por defecto 'en'.
+ * @param markdownContent - Contenido markdown opcional (si ya fue extraído en memoria)
  * @returns Resultado del análisis con el contenido de la respuesta o error
  */
 export async function analyzeWithNearAI(
   diagnosisText?: string,
-  locale?: "es" | "en"
+  locale?: "es" | "en",
+  markdownContent?: string
 ): Promise<AnalyzeNearResult> {
   const outputLang = locale === "es" ? "Spanish" : "English";
   const rejectionLang = locale === "es" ? "Spanish" : "English";
@@ -221,34 +220,41 @@ export async function analyzeWithNearAI(
     console.log("🚀 INICIANDO ANÁLISIS CON NEAR AI");
     console.log("═══════════════════════════════════════════════════");
 
-    // Paso 1: Leer el archivo markdown local
-    console.log("\n📂 [1/3] Leyendo archivo debug_extraction.md...");
-    console.log(`   Ruta: ${DEBUG_EXTRACTION_PATH}`);
+    // Paso 1: Obtener el contenido markdown
+    console.log("\n📂 [1/3] Obteniendo contenido markdown...");
 
-    let markdownContent: string;
-    try {
-      markdownContent = await readFile(DEBUG_EXTRACTION_PATH, 'utf-8');
-    } catch (fileError: any) {
-      if (fileError.code === 'ENOENT') {
-        console.error("❌ El archivo debug_extraction.md no existe");
-        return {
-          success: false,
-          error: "El archivo debug_extraction.md no existe. Por favor, primero extrae el PDF con LlamaParse."
-        };
+    let contentToAnalyze = markdownContent;
+
+    if (!contentToAnalyze) {
+      console.log(`   Leyendo de archivo local: ${DEBUG_EXTRACTION_PATH}`);
+      try {
+        contentToAnalyze = await readFile(DEBUG_EXTRACTION_PATH, 'utf-8');
+      } catch (fileError: any) {
+        if (fileError.code === 'ENOENT') {
+          console.error("❌ El archivo debug_extraction.md no existe y no se pasó contenido en memoria");
+          return {
+            success: false,
+            error: "No se encontró contenido para analizar (archivo no existe y no hay datos en memoria)."
+          };
+        }
+        throw fileError;
       }
-      throw fileError;
+    } else {
+      console.log("   Usando contenido proporcionado en memoria ✅");
     }
 
     // Validar que el contenido no esté vacío
-    if (!markdownContent || markdownContent.trim().length === 0) {
-      console.error("❌ El archivo debug_extraction.md está vacío");
+    if (!contentToAnalyze || contentToAnalyze.trim().length === 0) {
+      console.error("❌ El contenido a analizar está vacío");
       return {
         success: false,
-        error: "El archivo debug_extraction.md está vacío. Por favor, verifica que LlamaParse haya extraído el contenido correctamente."
+        error: "El contenido markdown está vacío o no se pudo obtener."
       };
     }
 
-    console.log(`✅ Archivo leído exitosamente (${markdownContent.length} caracteres)`);
+    const markdownToContext = contentToAnalyze;
+
+    console.log(`✅ Archivo leído exitosamente (${contentToAnalyze.length} caracteres)`);
     if (diagnosisText?.trim()) {
       console.log(`📋 Diagnóstico/notas del paciente incluido (${diagnosisText.trim().length} caracteres)`);
     }
@@ -318,7 +324,7 @@ Respond with ONLY a valid JSON object, no \`\`\` or text before or after. Use do
         },
         {
           role: "user",
-          content: userContent
+          content: `Analiza el siguiente documento:\n\n${contentToAnalyze}`
         }
       ],
       temperature: 0.3,
@@ -331,7 +337,7 @@ Respond with ONLY a valid JSON object, no \`\`\` or text before or after. Use do
     console.log("\n🚀 INICIANDO CONEXIÓN A NEAR AI...");
     console.log("\n📦 PAYLOAD JSON GENERADO:");
     console.log(JSON.stringify(payload, null, 2));
-    
+
     console.log(`\n📡 Enviando petición a ${NEAR_AI_API_URL}...`);
     console.log(`   ✅ Bearer Token: ${apiKey.substring(0, 10)}...`);
 
@@ -347,14 +353,14 @@ Respond with ONLY a valid JSON object, no \`\`\` or text before or after. Use do
     // Manejar errores de la API
     if (!response.ok) {
       console.log(`\n❌ ERROR DE CONEXIÓN: Status ${response.status} ${response.statusText}`);
-      
+
       let errorMessage = `Error ${response.status}: ${response.statusText}`;
-      
+
       try {
         const errorData = await response.json();
         console.log("📋 Detalles del error (JSON):");
         console.log(JSON.stringify(errorData, null, 2));
-        
+
         if (errorData.error?.message) {
           errorMessage = errorData.error.message;
         } else if (typeof errorData === 'string') {
@@ -365,14 +371,14 @@ Respond with ONLY a valid JSON object, no \`\`\` or text before or after. Use do
         const errorText = await response.text();
         console.log("📋 Detalles del error (Texto):");
         console.log(errorText);
-        
+
         if (errorText) {
           errorMessage = errorText;
         }
       }
 
       console.error(`❌ Error de API: ${errorMessage}`);
-      
+
       // Errores comunes
       if (response.status === 401) {
         return {
@@ -395,9 +401,9 @@ Respond with ONLY a valid JSON object, no \`\`\` or text before or after. Use do
 
     // Parsear la respuesta exitosa
     console.log(`\n✅ RESPUESTA RECIBIDA (Status: ${response.status})`);
-    
+
     const data: NearAIResponse = await response.json();
-    
+
     console.log("📥 Respuesta parseada exitosamente");
 
     // Extraer el contenido del mensaje
@@ -516,7 +522,7 @@ Respond with ONLY a valid JSON object, no \`\`\` or text before or after. Use do
     console.error("   Tipo:", error.constructor.name);
     console.error("   Mensaje:", error.message);
     console.error("   Stack:", error.stack);
-    
+
     // Manejar diferentes tipos de errores
     if (error instanceof TypeError && error.message.includes("fetch")) {
       console.error("   🔍 Diagnóstico: Error de red/fetch");

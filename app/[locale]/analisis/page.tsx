@@ -17,7 +17,17 @@ import {
   ChevronUp,
   Stethoscope,
   Inbox,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
+import { usePrivy } from "@privy-io/react-auth";
+import {
+  getConsultationsByPatientAction,
+  getConsultationsBySpecialistAction
+} from "@/app/actions/consultations";
+import { ConsultationResponseModal } from "./ConsultationResponseModal";
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -28,6 +38,145 @@ function formatDate(iso: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function StatusBadge({ status }: { status: string }) {
+  switch (status) {
+    case "pending":
+      return (
+        <span className="flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 border border-amber-100">
+          <Clock className="h-3 w-3" />
+          Pendiente
+        </span>
+      );
+    case "completed":
+      return (
+        <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 border border-emerald-100">
+          <CheckCircle2 className="h-3 w-3" />
+          Completado
+        </span>
+      );
+    case "rejected":
+      return (
+        <span className="flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 border border-rose-100">
+          <AlertCircle className="h-3 w-3" />
+          Rechazado
+        </span>
+      );
+    default:
+      return (
+        <span className="flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 border border-slate-200">
+          {status}
+        </span>
+      );
+  }
+}
+
+function ConsultationCard({
+  consultation,
+  isSpecialistView = false,
+  onDictaminar
+}: {
+  consultation: any;
+  isSpecialistView?: boolean;
+  onDictaminar?: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-5 shadow-sm backdrop-blur">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="truncate font-semibold text-slate-900">
+              Solicitud de Consulta
+            </span>
+            <StatusBadge status={consultation.status} />
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            {formatDate(consultation.createdAt)}
+          </p>
+          <div className="mt-3 flex items-center gap-2 overflow-hidden">
+            <FileText className="h-4 w-4 shrink-0 text-teal-600" />
+            <a
+              href={consultation.documentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="truncate text-xs font-medium text-teal-700 underline hover:text-teal-800"
+            >
+              Ver análisis
+            </a>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 sm:flex-col sm:items-end">
+          <p className="text-xs text-slate-500 font-semibold text-teal-700">
+            Especialista: {consultation.specialistName}
+          </p>
+          <span className="text-[10px] font-mono font-medium text-slate-400">
+            {consultation.specialistAccount.slice(0, 8)}...{consultation.specialistAccount.slice(-4)}
+          </span>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
+      >
+        {expanded ? (
+          <>
+            <ChevronUp className="h-4 w-4" />
+            Cerrar detalle
+          </>
+        ) : (
+          <>
+            <ChevronDown className="h-4 w-4" />
+            Ver detalles y comentarios
+          </>
+        )}
+      </button>
+
+      {expanded && (
+        <div className="mt-4 space-y-4 rounded-2xl border border-slate-200/70 bg-white/90 p-4 text-sm">
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Resumen del Paciente (IA)
+            </h4>
+            <p className="mt-1 leading-relaxed text-slate-700">
+              {consultation.analysisCommentsAI || "Sin comentarios adicionales."}
+            </p>
+          </div>
+          {consultation.analysisCommentsSpecialist ? (
+            <div className="pt-3 border-t border-slate-100">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-teal-600">
+                Respuesta del Especialista
+              </h4>
+              <p className="mt-1 whitespace-pre-wrap leading-relaxed text-slate-800 font-medium">
+                {consultation.analysisCommentsSpecialist}
+              </p>
+            </div>
+          ) : (
+            <div className="pt-3 border-t border-slate-100">
+              <p className="text-xs italic text-slate-400">Esperando respuesta del especialista...</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isSpecialistView && consultation.status === "pending" && (
+        <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
+          <button
+            type="button"
+            onClick={onDictaminar}
+            className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 transition shadow-sm"
+          >
+            <Stethoscope className="h-4 w-4" />
+            Dictaminar
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function AnalysisCard({
@@ -164,15 +313,76 @@ function AnalysisCard({
 
 export default function AnalisisPage() {
   const t = useTranslations("analisis");
+  const { user } = usePrivy();
+  const [activeTab, setActiveTab] = useState<"local" | "consultations" | "specialist">("local");
   const [analyses, setAnalyses] = useState<SavedAnalysis[]>([]);
+  const [consultations, setConsultations] = useState<any[]>([]);
+  const [specialistConsultations, setSpecialistConsultations] = useState<any[]>([]);
+  const [isLoadingConsultations, setIsLoadingConsultations] = useState(false);
+  const [isSpecialist, setIsSpecialist] = useState(false);
+  const [selectedConsultationForDictamen, setSelectedConsultationForDictamen] = useState<any | null>(null);
 
-  const refresh = useCallback(() => {
+  const refreshLocal = useCallback(() => {
     setAnalyses(getAnalyses());
   }, []);
 
+  const refreshConsultations = useCallback(async () => {
+    const address = user?.wallet?.address;
+    if (!address) return;
+    setIsLoadingConsultations(true);
+    try {
+      const result = await getConsultationsByPatientAction(address);
+      if (result.success && result.data) {
+        setConsultations(result.data);
+      }
+    } catch (err) {
+      console.error("Error fetching consultations", err);
+    } finally {
+      setIsLoadingConsultations(false);
+    }
+  }, [user]);
+
+  const refreshSpecialistConsultations = useCallback(async () => {
+    const address = user?.wallet?.address;
+    if (!address) return;
+    setIsLoadingConsultations(true);
+    try {
+      const result = await getConsultationsBySpecialistAction(address);
+      if (result.success && result.data) {
+        setSpecialistConsultations(result.data);
+      }
+    } catch (err) {
+      console.error("Error fetching specialist consultations", err);
+    } finally {
+      setIsLoadingConsultations(false);
+    }
+  }, [user]);
+
+  // Check if current user is a specialist
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    const address = user?.wallet?.address;
+    if (!address) {
+      setIsSpecialist(false);
+      return;
+    }
+    fetch(`/api/specialists/identifier/${encodeURIComponent(address)}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        const profile = data?.data ?? data;
+        setIsSpecialist(!!profile && (profile.status === "Verified" || profile.status === "Verificado"));
+      })
+      .catch(() => setIsSpecialist(false));
+  }, [user]);
+
+  useEffect(() => {
+    if (activeTab === "local") {
+      refreshLocal();
+    } else if (activeTab === "consultations") {
+      refreshConsultations();
+    } else {
+      refreshSpecialistConsultations();
+    }
+  }, [activeTab, refreshLocal, refreshConsultations, refreshSpecialistConsultations]);
 
   const handleRemove = useCallback((id: string) => {
     removeAnalysis(id);
@@ -181,8 +391,7 @@ export default function AnalisisPage() {
 
   const handleClearAll = useCallback(() => {
     if (typeof window === "undefined") return;
-    if (!confirm(t("confirmClearAll")))
-      return;
+    if (!confirm(t("confirmClearAll"))) return;
     clearAnalyses();
     setAnalyses([]);
   }, [t]);
@@ -202,58 +411,174 @@ export default function AnalisisPage() {
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
               {t("title")}
             </h1>
-            <p className="mt-2 text-slate-600">
-              {t("description")}
-            </p>
+            <p className="mt-2 text-slate-600">{t("description")}</p>
           </section>
 
-          {analyses.length > 0 ? (
+          {/* TABS */}
+          <div className="mb-8 flex flex-wrap gap-1 p-1 rounded-2xl bg-slate-100 w-fit">
+            <button
+              onClick={() => setActiveTab("local")}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${activeTab === "local"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
+                }`}
+            >
+              Análisis Locales
+            </button>
+            <button
+              onClick={() => setActiveTab("consultations")}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${activeTab === "consultations"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
+                }`}
+            >
+              Solicitudes Enviadas
+            </button>
+            {isSpecialist && (
+              <button
+                onClick={() => setActiveTab("specialist")}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold border-l border-slate-200 transition ${activeTab === "specialist"
+                  ? "bg-white text-teal-700 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+                  }`}
+              >
+                Dictámenes Pendientes
+              </button>
+            )}
+          </div>
+
+          {activeTab === "local" ? (
             <>
-              <div className="mb-4 flex items-center justify-between">
-                <span className="text-sm text-slate-500">
-                  {t("analysesSaved", { count: analyses.length })}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleClearAll}
-                  className="text-sm font-medium text-slate-600 underline hover:text-red-600"
-                >
-                  {t("clearAll")}
-                </button>
-              </div>
-              <ul className="grid gap-6">
-                {analyses.map((analysis) => (
-                  <li key={analysis.id}>
-                    <AnalysisCard
-                      analysis={analysis}
-                      onRemove={() => handleRemove(analysis.id)}
-                      t={t}
-                    />
-                  </li>
-                ))}
-              </ul>
+              {analyses.length > 0 ? (
+                <>
+                  <div className="mb-4 flex items-center justify-between">
+                    <span className="text-sm text-slate-500">
+                      {t("analysesSaved", { count: analyses.length })}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleClearAll}
+                      className="text-sm font-medium text-slate-600 underline hover:text-red-600"
+                    >
+                      {t("clearAll")}
+                    </button>
+                  </div>
+                  <ul className="grid gap-6">
+                    {analyses.map((analysis) => (
+                      <li key={analysis.id}>
+                        <AnalysisCard
+                          analysis={analysis}
+                          onRemove={() => handleRemove(analysis.id)}
+                          t={t}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/40 py-16 text-center">
+                  <div className="mb-4 rounded-full bg-slate-100 p-4">
+                    <Inbox className="h-10 w-10 text-slate-400" />
+                  </div>
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    {t("noAnalysesYet")}
+                  </h2>
+                  <p className="mt-2 max-w-sm text-slate-600">
+                    {t("noAnalysesHint")}
+                  </p>
+                  <Link
+                    href="/veridoc"
+                    className="mt-6 inline-flex items-center gap-2 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  >
+                    {t("goToWizard")}
+                  </Link>
+                </div>
+              )}
+            </>
+          ) : activeTab === "consultations" ? (
+            <>
+              {isLoadingConsultations ? (
+                <div className="flex flex-col items-center justify-center py-20">
+                  <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+                  <p className="mt-3 text-sm text-slate-500">Cargando consultas de la red...</p>
+                </div>
+              ) : consultations.length > 0 ? (
+                <ul className="grid gap-6">
+                  {consultations.map((consultation) => (
+                    <li key={consultation._id}>
+                      <ConsultationCard consultation={consultation} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/40 py-16 text-center">
+                  <div className="mb-4 rounded-full bg-slate-100 p-4">
+                    <Stethoscope className="h-10 w-10 text-slate-400" />
+                  </div>
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    No hay solicitudes de segunda opinión
+                  </h2>
+                  <p className="mt-2 max-w-sm text-slate-600">
+                    Cuando elijas a un especialista del Marketplace para revisar tus análisis, aparecerán aquí.
+                  </p>
+                  <Link
+                    href="/marketplace"
+                    className="mt-6 inline-flex items-center gap-2 rounded-full bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700"
+                  >
+                    Ir al Marketplace
+                  </Link>
+                </div>
+              )}
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/40 py-16 text-center">
-              <div className="mb-4 rounded-full bg-slate-100 p-4">
-                <Inbox className="h-10 w-10 text-slate-400" />
-              </div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                {t("noAnalysesYet")}
-              </h2>
-              <p className="mt-2 max-w-sm text-slate-600">
-                {t("noAnalysesHint")}
-              </p>
-              <Link
-                href="/veridoc"
-                className="mt-6 inline-flex items-center gap-2 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                {t("goToWizard")}
-              </Link>
-            </div>
+            <>
+              {isLoadingConsultations ? (
+                <div className="flex flex-col items-center justify-center py-20">
+                  <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+                  <p className="mt-3 text-sm text-slate-500">Cargando dictámenes...</p>
+                </div>
+              ) : specialistConsultations.length > 0 ? (
+                <ul className="grid gap-6">
+                  {specialistConsultations.map((consultation) => (
+                    <li key={consultation._id}>
+                      <ConsultationCard
+                        consultation={consultation}
+                        isSpecialistView={true}
+                        onDictaminar={() => setSelectedConsultationForDictamen(consultation)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/40 py-16 text-center">
+                  <div className="mb-4 rounded-full bg-slate-100 p-4">
+                    <Inbox className="h-10 w-10 text-slate-400" />
+                  </div>
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    No tienes dictámenes asignados
+                  </h2>
+                  <p className="mt-2 max-w-sm text-slate-600">
+                    Aquí aparecerán las solicitudes de pacientes que elijan tu perfil para una segunda opinión.
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </main>
       </div>
+
+      {selectedConsultationForDictamen && (
+        <ConsultationResponseModal
+          isOpen={true}
+          consultationId={selectedConsultationForDictamen._id}
+          patientAccount={selectedConsultationForDictamen.patientAccount}
+          onClose={() => setSelectedConsultationForDictamen(null)}
+          onSuccess={() => {
+            refreshSpecialistConsultations();
+            setSelectedConsultationForDictamen(null);
+          }}
+        />
+      )}
     </div>
   );
 }

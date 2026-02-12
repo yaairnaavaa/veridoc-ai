@@ -18,6 +18,7 @@ export type SavedAnalysis = {
   id: string;
   createdAt: string; // ISO
   labFileName: string;
+  pdfUrl?: string; // Cloudinary URL
   report: SavedReport;
 };
 

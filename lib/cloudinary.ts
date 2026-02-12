@@ -36,7 +36,7 @@ function getResourceType(mime: string): CloudinaryResourceType {
  * Usar solo en servidor (credenciales).
  */
 export async function uploadToCloudinary(
-  file: Buffer,
+  file: Uint8Array,
   originalName: string,
   mimeType: string,
   folder = "veridoc/specialist-verification"

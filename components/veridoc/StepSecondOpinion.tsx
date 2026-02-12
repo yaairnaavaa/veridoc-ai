@@ -2,7 +2,9 @@
 
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { ChevronRight, Stethoscope, ShieldCheck } from "lucide-react";
+import { ChevronRight, Stethoscope, ShieldCheck, Eye, Loader2 } from "lucide-react";
+import { getAnalysisIDB } from "@/lib/veridoc/idbStore";
+import { useState } from "react";
 
 type StepSecondOpinionProps = {
   analysisId?: string;
@@ -18,7 +20,28 @@ export const StepSecondOpinion = ({
   const t = useTranslations("stepSecondOpinion");
   const tCommon = useTranslations("common");
   const tNav = useTranslations("nav");
+  const [verifying, setVerifying] = useState(false);
   const marketplaceHref = analysisId ? `/marketplace?from=wizard&analysisId=${analysisId}` : "/marketplace?from=wizard";
+
+  const handleVerifyIDB = async () => {
+    if (!analysisId) return;
+    setVerifying(true);
+    try {
+      const data = await getAnalysisIDB(analysisId);
+      if (data && data.pdfFile) {
+        const url = URL.createObjectURL(data.pdfFile);
+        window.open(url, "_blank");
+        // Optativo: revocar después de un tiempo o dejar que el navegador lo maneje
+      } else {
+        alert("No se encontró el archivo en IndexedDB");
+      }
+    } catch (err) {
+      console.error("Error verifying IDB", err);
+      alert("Error al acceder a IndexedDB");
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   return (
     <section className="grid gap-6 pb-24 sm:pb-0">
@@ -50,6 +73,22 @@ export const StepSecondOpinion = ({
             {t("goToMarketplace")}
             <ChevronRight className="h-4 w-4 opacity-80" />
           </Link>
+
+          {analysisId && (
+            <button
+              type="button"
+              onClick={handleVerifyIDB}
+              disabled={verifying}
+              className="flex w-full items-center justify-center gap-2 rounded-full border border-teal-200 bg-teal-50/50 px-4 py-3 text-sm font-semibold text-teal-700 transition hover:bg-teal-100 disabled:opacity-50"
+            >
+              {verifying ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+              Ver PDF guardado en IndexedDB (Test)
+            </button>
+          )}
           <p className="text-center text-xs text-slate-500">
             {t("viewAnalyses")}{" "}
             <Link href="/analisis" className="font-medium text-teal-700 underline hover:text-teal-800">

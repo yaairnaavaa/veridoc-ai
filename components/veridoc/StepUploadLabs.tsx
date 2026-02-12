@@ -7,23 +7,25 @@ import { analyzeMedicalRecord } from "@/app/actions/analyze-medical-record";
 
 const PDF_MIME = "application/pdf";
 
- type StepUploadLabsProps = {
-   labsFile: File | null;
-   maxBytes: number;
-   formatBytes: (bytes: number) => string;
-   onFileSelect: (file: File) => void;
-   onClear: () => void;
-   onContinue: () => void;
- };
+type StepUploadLabsProps = {
+  labsFile: File | null;
+  maxBytes: number;
+  formatBytes: (bytes: number) => string;
+  onFileSelect: (file: File) => void;
+  onAnalysisComplete?: (markdown: string) => void;
+  onClear: () => void;
+  onContinue: () => void;
+};
 
- export const StepUploadLabs = ({
-   labsFile,
-   maxBytes,
-   formatBytes,
-   onFileSelect,
-   onClear,
-   onContinue,
- }: StepUploadLabsProps) => {
+export const StepUploadLabs = ({
+  labsFile,
+  maxBytes,
+  formatBytes,
+  onFileSelect,
+  onAnalysisComplete,
+  onClear,
+  onContinue,
+}: StepUploadLabsProps) => {
   const t = useTranslations("stepUpload");
   const tCommon = useTranslations("common");
   const tResults = useTranslations("stepResults");
@@ -34,7 +36,7 @@ const PDF_MIME = "application/pdf";
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
-  
+
   // Nuevos estados para el análisis
   const [isLoading, setIsLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<{
@@ -77,7 +79,12 @@ const PDF_MIME = "application/pdf";
         const result = await analyzeMedicalRecord(formData);
         if (!cancelled) {
           setAnalysisResult(result);
-          if (!result.success) setError(result.message || t("errorAnalyzing"));
+          if (result.success && "markdown" in result) {
+            onAnalysisComplete?.(result.markdown);
+          }
+          if (!result.success && "message" in result) {
+            setError(result.message || t("errorAnalyzing"));
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -93,15 +100,15 @@ const PDF_MIME = "application/pdf";
     };
   }, [labsFile]);
 
-   const validateFile = (file: File) => {
-     if (file.type !== PDF_MIME) {
-       return t("pdfOnlyError");
-     }
-     if (file.size > maxBytes) {
-       return t("tooLarge", { maxSize: formatBytes(maxBytes) });
-     }
-     return null;
-   };
+  const validateFile = (file: File) => {
+    if (file.type !== PDF_MIME) {
+      return t("pdfOnlyError");
+    }
+    if (file.size > maxBytes) {
+      return t("tooLarge", { maxSize: formatBytes(maxBytes) });
+    }
+    return null;
+  };
 
   const handleFile = async (file: File) => {
     const validationError = validateFile(file);
@@ -120,11 +127,15 @@ const PDF_MIME = "application/pdf";
       try {
         const formData = new FormData();
         formData.append('file', file);
-        
+
         const result = await analyzeMedicalRecord(formData);
         setAnalysisResult(result);
-        
-        if (!result.success) {
+
+        if (result.success && "markdown" in result) {
+          onAnalysisComplete?.(result.markdown);
+        }
+
+        if (!result.success && "message" in result) {
           setError(result.message || 'Error al analizar el documento');
         }
       } catch (err) {
@@ -136,25 +147,25 @@ const PDF_MIME = "application/pdf";
     }
   };
 
-   const handleBrowse = () => {
-     inputRef.current?.click();
-   };
+  const handleBrowse = () => {
+    inputRef.current?.click();
+  };
 
-   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-     const file = event.target.files?.[0];
-     if (file) {
-       handleFile(file);
-     }
-   };
+  const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      handleFile(file);
+    }
+  };
 
-   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
-     event.preventDefault();
-     setIsDragging(false);
-     const file = event.dataTransfer.files?.[0];
-     if (file) {
-       handleFile(file);
-     }
-   };
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragging(false);
+    const file = event.dataTransfer.files?.[0];
+    if (file) {
+      handleFile(file);
+    }
+  };
 
   const isPdf = labsFile?.type === PDF_MIME;
   const canContinue = labsFile != null && analysisResult?.success === true;
@@ -162,14 +173,14 @@ const PDF_MIME = "application/pdf";
   return (
     <section className="grid gap-6 pb-24 sm:pb-0">
       <div className="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm backdrop-blur sm:p-6">
-         <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3">
           <h2 className="text-xl font-semibold text-slate-900">
-             {t("title")}
-           </h2>
-           <p className="text-sm text-slate-600">
+            {t("title")}
+          </h2>
+          <p className="text-sm text-slate-600">
             {t("subtitle", { maxSize: formatBytes(maxBytes) })}
-           </p>
-         </div>
+          </p>
+        </div>
 
         <div
           role="button"
@@ -181,37 +192,36 @@ const PDF_MIME = "application/pdf";
               handleBrowse();
             }
           }}
-          className={`mt-5 cursor-pointer rounded-3xl border border-dashed px-5 py-7 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
-             isDragging
-               ? "border-teal-400 bg-teal-50/60"
-               : "border-slate-200 bg-white/80"
-           }`}
-           onDragOver={(event) => {
-             event.preventDefault();
-             setIsDragging(true);
-           }}
-           onDragLeave={() => setIsDragging(false)}
-           onDrop={handleDrop}
-         >
-           <input
-             ref={inputRef}
-             type="file"
-             accept={PDF_MIME}
-             onChange={handleInputChange}
-             className="hidden"
-           />
-           <p className="text-sm font-medium text-slate-700">
+          className={`mt-5 cursor-pointer rounded-3xl border border-dashed px-5 py-7 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${isDragging
+            ? "border-teal-400 bg-teal-50/60"
+            : "border-slate-200 bg-white/80"
+            }`}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            accept={PDF_MIME}
+            onChange={handleInputChange}
+            className="hidden"
+          />
+          <p className="text-sm font-medium text-slate-700">
             {t("dropHere")}
-           </p>
-           <p className="mt-2 text-xs text-slate-500">{t("or")}</p>
-           <button
-             type="button"
-             onClick={handleBrowse}
+          </p>
+          <p className="mt-2 text-xs text-slate-500">{t("or")}</p>
+          <button
+            type="button"
+            onClick={handleBrowse}
             className="mt-3 inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-           >
-             {t("browse")}
-           </button>
-         </div>
+          >
+            {t("browse")}
+          </button>
+        </div>
 
         {error ? (
           <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -296,13 +306,13 @@ const PDF_MIME = "application/pdf";
                       {isPdf ? (
                         <div className="flex flex-col gap-3 p-4 text-sm text-slate-600">
                           <p>{t("pdfPreviewNote")}</p>
-                  <button
-                    type="button"
-                    onClick={() => setIsPdfPreviewOpen(true)}
-                    className="inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-5 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-                  >
-                    {t("openPreview")}
-                  </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsPdfPreviewOpen(true)}
+                            className="inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-5 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                          >
+                            {t("openPreview")}
+                          </button>
                         </div>
                       ) : (
                         <div
@@ -345,8 +355,8 @@ const PDF_MIME = "application/pdf";
               </div>
             ) : null}
           </div>
-         ) : null}
-       </div>
+        ) : null}
+      </div>
 
       <div className="sticky bottom-0 z-10 -mx-4 border-t border-white/70 bg-[#f5fbfb]/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
         <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:justify-end">
@@ -395,6 +405,6 @@ const PDF_MIME = "application/pdf";
           </div>
         </div>
       ) : null}
-     </section>
-   );
- };
+    </section>
+  );
+};

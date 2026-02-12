@@ -50,7 +50,7 @@ async function runLlamaParsePipeline(
     console.log("🚀 INICIANDO PROCESO CON LLAMAPARSE");
     console.log("═══════════════════════════════════════════════════");
     console.log(`📄 Archivo: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
-    
+
     // Paso 1: Subir Archivo
     console.log("\n📤 [1/3] Subiendo archivo a LlamaParse...");
     const uploadForm = new FormData();
@@ -87,21 +87,21 @@ async function runLlamaParsePipeline(
     let markdown = "";
     let attempts = 0;
     const maxAttempts = 90; // ~90 segundos para PDFs complejos o largos
-    
+
     while (attempts < maxAttempts) {
       await new Promise(r => setTimeout(r, 1000)); // Esperar 1 seg
       attempts++;
-      
+
       const checkRes = await fetch(`${LLAMA_API_URL}/job/${jobId}`, {
-         headers: { Authorization: `Bearer ${llamaKey}` },
+        headers: { Authorization: `Bearer ${llamaKey}` },
       });
       const jobData = await checkRes.json();
-      
+
       // Log del estado actual
       if (jobData.status && jobData.status !== "SUCCESS" && jobData.status !== "FAILED") {
         console.log(`   ⏳ Intento ${attempts}/${maxAttempts} - Estado: ${jobData.status}...`);
       }
-      
+
       if (jobData.status === "SUCCESS") {
         console.log(`\n✅ ¡LlamaParse completó el procesamiento! (${attempts} segundos)`);
 
@@ -149,7 +149,7 @@ async function runLlamaParsePipeline(
         "The document is still being processed. PDFs with many pages or complex layouts can take over a minute. Please try again in a moment, or try with a shorter PDF."
       );
     }
-    
+
     console.log("\n═══════════════════════════════════════════════════");
     console.log("📝 TEXTO EXTRAÍDO POR LLAMAPARSE");
     console.log("═══════════════════════════════════════════════════");
@@ -163,13 +163,15 @@ async function runLlamaParsePipeline(
       return { success: false, message: 'El PDF no contiene suficiente texto legible.' };
     }
 
-    // Guardar el markdown en un archivo físico
-    console.log("\n💾 Guardando markdown en archivo local...");
-    const debugFilePath = join(process.cwd(), 'debug_extraction.md');
-    await writeFile(debugFilePath, markdown, 'utf-8');
-    console.log(`✅ Archivo guardado exitosamente en:`);
-    console.log(`   📁 ${debugFilePath}`);
-    console.log(`   📊 Tamaño: ${(markdown.length / 1024).toFixed(2)} KB`);
+    // Guardar el markdown en un archivo físico (opcional para depuración local)
+    try {
+      console.log("\n💾 Intentando guardar markdown en archivo local (debug)...");
+      const debugFilePath = join(process.cwd(), 'debug_extraction.md');
+      await writeFile(debugFilePath, markdown, 'utf-8');
+      console.log(`✅ Archivo guardado en: ${debugFilePath}`);
+    } catch (saveError) {
+      console.warn("⚠️ No se pudo guardar el archivo debug_extraction.md (esto es normal en producción).");
+    }
 
     // Paso 4: Análisis con Gemini (COMENTADO - Ya no se usa por ahora)
     /*
@@ -248,9 +250,9 @@ async function runLlamaParsePipeline(
     console.log("✅ Markdown listo para ser devuelto al cliente");
     console.log("═══════════════════════════════════════════════════\n");
 
-    return { 
-      success: true, 
-      markdown: markdown 
+    return {
+      success: true,
+      markdown: markdown
     };
 
   } catch (error: unknown) {

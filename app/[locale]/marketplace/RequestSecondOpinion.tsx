@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "@/i18n/navigation";
 import { getAnalyses, type SavedAnalysis } from "@/lib/veridoc/analysesStore";
-import { FileText, Send, Loader2 } from "lucide-react";
+import { getAnalysisIDB } from "@/lib/veridoc/idbStore";
+import { uploadToCloudinary } from "@/lib/cloudinary";
+import { FileText, Send, Loader2, Eye } from "lucide-react";
+import { usePrivy } from "@privy-io/react-auth";
+import { createConsultationAction } from "@/app/actions/consultations";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -14,34 +18,112 @@ function formatDate(iso: string) {
 }
 
 type RequestSecondOpinionProps = {
-  specialistId: string;
+  specialistAccount: string;
   specialistName: string;
   priceUsdt: number;
 };
 
 export function RequestSecondOpinion({
-  specialistId,
+  specialistAccount,
   specialistName,
   priceUsdt,
 }: RequestSecondOpinionProps) {
+  const { user, login } = usePrivy();
   const [analyses, setAnalyses] = useState<SavedAnalysis[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+
+  const handlePreviewIDB = async () => {
+    if (!selectedId) return;
+    setPreviewing(true);
+    try {
+      const data = await getAnalysisIDB(selectedId);
+      if (data && data.pdfFile) {
+        const url = URL.createObjectURL(data.pdfFile);
+        window.open(url, "_blank");
+      } else {
+        alert("El archivo no está en IndexedDB (tal vez se generó en otro dispositivo)");
+      }
+    } catch (err) {
+      console.error("Preview IDB failed for ID:", selectedId, err);
+      alert(`Error al previsualizar: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setPreviewing(false);
+    }
+  };
 
   useEffect(() => {
     setAnalyses(getAnalyses());
   }, []);
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     if (!selectedId) return;
+
+    if (!user) {
+      login();
+      return;
+    }
+
+    const patientAccount = user.wallet?.address;
+    if (!patientAccount) {
+      setError("No wallet connected. Please connect your wallet.");
+      return;
+    }
+
+    const selectedAnalysis = analyses.find((a) => a.id === selectedId);
+    if (!selectedAnalysis) return;
+
+    let documentUrl = selectedAnalysis.pdfUrl;
+
     setSubmitting(true);
-    // Mockup: simular envío
-    setTimeout(() => {
+    setError(null);
+
+    // Si no tiene URL de Cloudinary, intentamos subir el archivo local de IndexedDB
+    if (!documentUrl) {
+      try {
+        const idbData = await getAnalysisIDB(selectedId);
+        if (idbData?.pdfFile) {
+          const uint8 = new Uint8Array(await idbData.pdfFile.arrayBuffer());
+          const uploadedUrl = await uploadToCloudinary(
+            uint8,
+            idbData.labFileName,
+            idbData.pdfFile.type || "application/pdf"
+          );
+          if (uploadedUrl) {
+            documentUrl = uploadedUrl;
+          }
+        }
+      } catch (err) {
+        console.error("Marketplace: Error retrieving file from IndexedDB", err);
+      }
+    }
+
+    if (!documentUrl) {
+      setError("No se pudo obtener el documento (PDF) para enviar. Por favor, intenta de nuevo o genera un nuevo análisis.");
       setSubmitting(false);
+      return;
+    }
+
+    const result = await createConsultationAction({
+      patientAccount,
+      specialistAccount,
+      specialistName,
+      documentUrl,
+      analysisCommentsAI: selectedAnalysis.report.summary,
+    });
+
+    setSubmitting(true); // Redundant but for completeness
+
+    if (result.success) {
       setSubmitted(true);
-    }, 1500);
-  }, [selectedId]);
+    } else {
+      setError(result.error || "Ocurrió un error al enviar la solicitud.");
+    }
+    setSubmitting(false);
+  }, [selectedId, user, login, analyses, specialistAccount, specialistName]);
 
   if (analyses.length === 0) {
     return (
@@ -99,11 +181,10 @@ export function RequestSecondOpinion({
         {analyses.map((a) => (
           <label
             key={a.id}
-            className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition ${
-              selectedId === a.id
-                ? "border-teal-300 bg-teal-50/50 ring-1 ring-teal-200/60"
-                : "border-slate-200 bg-slate-50/50 hover:border-slate-300"
-            }`}
+            className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition ${selectedId === a.id
+              ? "border-teal-300 bg-teal-50/50 ring-1 ring-teal-200/60"
+              : "border-slate-200 bg-slate-50/50 hover:border-slate-300"
+              }`}
           >
             <input
               type="radio"
@@ -119,6 +200,27 @@ export function RequestSecondOpinion({
                 {a.labFileName}
               </p>
               <p className="text-xs text-slate-500">{formatDate(a.createdAt)}</p>
+              {/* Botón de test para IndexedDB */}
+              {selectedId === a.id && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handlePreviewIDB();
+                  }}
+                  disabled={previewing}
+                  className="ml-auto inline-flex h-8 items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2 text-[10px] font-bold uppercase tracking-wider text-teal-700 transition hover:bg-teal-100 disabled:opacity-50"
+                  title="Ver PDF desde IndexedDB (Prueba local)"
+                >
+                  {previewing ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Eye className="h-3 w-3" />
+                  )}
+                  Preview IDB
+                </button>
+              )}
             </div>
           </label>
         ))}
@@ -150,8 +252,13 @@ export function RequestSecondOpinion({
           Ver todos mis análisis
         </Link>
       </div>
+      {error && (
+        <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50 p-3 text-xs text-rose-600">
+          {error}
+        </div>
+      )}
       <p className="mt-3 text-xs text-slate-400">
-        Mockup: el pago y el envío al especialista se simulan. En producción se conectaría con wallet y backend.
+        Información: el envío se registrará en el backend y el especialista será notificado.
       </p>
     </div>
   );

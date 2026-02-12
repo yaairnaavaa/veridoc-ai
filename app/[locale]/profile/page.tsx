@@ -30,6 +30,7 @@ type SpecialistProfile = {
   nearAddress?: string;
   privyWallet?: string;
   _id?: string;
+  id?: string;
 };
 
 
@@ -37,6 +38,39 @@ const USDT_LOGO_URL =
   "https://assets.coingecko.com/coins/images/325/small/Tether.png";
 
 type ProfileTabId = "profile" | "verified" | "balance";
+
+const SPECIALTIES = [
+  "Anesthesiology",
+  "Cardiology",
+  "Dermatology",
+  "Emergency Medicine",
+  "Endocrinology",
+  "Family Medicine",
+  "Gastroenterology",
+  "General Medicine",
+  "Geriatrics",
+  "Gynecology",
+  "Hematology",
+  "Infectious Disease",
+  "Internal Medicine",
+  "Nephrology",
+  "Neurology",
+  "Nutrition",
+  "Obstetrics",
+  "Oncology",
+  "Ophthalmology",
+  "Orthopedics",
+  "Otolaryngology (ENT)",
+  "Pathology",
+  "Pediatrics",
+  "Physical Medicine & Rehabilitation",
+  "Psychiatry",
+  "Pulmonology",
+  "Radiology",
+  "Rheumatology",
+  "Surgery",
+  "Urology",
+] as const;
 
 function getTabs(t: (key: string) => string): { id: ProfileTabId; label: string; shortLabel: string; icon: typeof User }[] {
   return [
@@ -93,6 +127,22 @@ function ProfilePageContent() {
   const [updateLicenseName, setUpdateLicenseName] = useState<string | null>(null);
   const [updateDegreeName, setUpdateDegreeName] = useState<string | null>(null);
 
+  // SEARCHABLE SPECIALTY STATE
+  const [selectedSpecialty, setSelectedSpecialty] = useState("");
+  const [specialtyOpen, setSpecialtyOpen] = useState(false);
+  const [specialtyQuery, setSpecialtyQuery] = useState("");
+  const specialtyRef = useCallback((node: HTMLDivElement | null) => {
+    if (node !== null) {
+      // Handle specialty click outside logic if needed, but for simplicity we use focus/blur
+    }
+  }, []);
+
+  const filteredSpecialties = specialtyQuery.trim()
+    ? SPECIALTIES.filter((s) =>
+      s.toLowerCase().includes(specialtyQuery.toLowerCase())
+    )
+    : [...SPECIALTIES];
+
   const privyWallet = user?.wallet?.address ?? null;
 
   const refreshSpecialistProfile = useCallback(() => {
@@ -100,7 +150,14 @@ function ProfilePageContent() {
     setSpecialistLoading(true);
     fetch(`/api/specialists/${encodeURIComponent(privyWallet)}`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setSpecialistProfile(data?.data ?? data ?? null))
+      .then((data) => {
+        const profile = data?.data ?? data ?? null;
+        setSpecialistProfile(profile);
+        console.log("Profile loaded:", profile);
+        if (profile?.specialty) {
+          setSelectedSpecialty(profile.specialty);
+        }
+      })
       .catch(() => setSpecialistProfile(null))
       .finally(() => setSpecialistLoading(false));
   }, [privyWallet]);
@@ -232,7 +289,7 @@ function ProfilePageContent() {
       const form = e.currentTarget;
       const formData = new FormData(form);
       const professionalTitle = String(formData.get("professionalTitle") ?? "").trim();
-      const specialty = String(formData.get("specialty") ?? "").trim();
+      const specialty = selectedSpecialty;
       const biography = String(formData.get("biography") ?? "").trim();
       const yearsOfExperience = Number(formData.get("yearsOfExperience")) || 0;
       const consultationPrice = Number(formData.get("consultationPrice")) || 0;
@@ -355,11 +412,10 @@ function ProfilePageContent() {
                     id={`tab-${tab.id}`}
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex min-h-[2.75rem] min-w-[2.75rem] shrink-0 items-center justify-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 sm:justify-start sm:px-5 ${
-                      isActive
-                        ? "border-teal-600 text-teal-700"
-                        : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-800"
-                    }`}
+                    className={`flex min-h-[2.75rem] min-w-[2.75rem] shrink-0 items-center justify-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 sm:justify-start sm:px-5 ${isActive
+                      ? "border-teal-600 text-teal-700"
+                      : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-800"
+                      }`}
                   >
                     <Icon className="h-4 w-4 shrink-0" aria-hidden />
                     <span className="hidden sm:inline">{tab.label}</span>
@@ -486,9 +542,9 @@ function ProfilePageContent() {
                   ) : specialistProfile ? (
                     <div className="mt-4 space-y-4">
                       <div className="flex gap-4">
-                        {specialistProfile.profileImageUrl ? (
+                        {specialistProfile.profileImageUrl || (specialistProfile as any).image ? (
                           <img
-                            src={specialistProfile.profileImageUrl}
+                            src={specialistProfile.profileImageUrl || (specialistProfile as any).image}
                             alt=""
                             className="h-20 w-20 shrink-0 rounded-xl object-cover"
                           />
@@ -502,20 +558,27 @@ function ProfilePageContent() {
                           <p className="text-sm text-slate-600">{specialistProfile.specialty}</p>
                           {specialistProfile.status && (
                             <span
-                              className={`mt-1.5 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                                specialistProfile.status === "Verificado"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : "bg-amber-100 text-amber-800"
-                              }`}
+                              className={`mt-1.5 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${specialistProfile.status === "Verified" || specialistProfile.status === "Verificado"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-amber-100 text-amber-800"
+                                }`}
                             >
-                              {specialistProfile.status}
+                              {specialistProfile.status === "Verified" ? t("statusVerified") || "Verificado" : specialistProfile.status}
                             </span>
                           )}
                         </div>
                       </div>
-                      {specialistProfile.biography && (
-                        <p className="text-sm text-slate-600">{specialistProfile.biography}</p>
-                      )}
+                      <div className="space-y-2">
+                        {specialistProfile.nearAddress && (
+                          <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <CreditCard className="h-3.5 w-3.5" />
+                            <span className="font-mono">{specialistProfile.nearAddress}</span>
+                          </div>
+                        )}
+                        {specialistProfile.biography && (
+                          <p className="text-sm text-slate-600 leading-relaxed">{specialistProfile.biography}</p>
+                        )}
+                      </div>
                       <div className="flex flex-wrap gap-2">
                         {specialistProfile.yearsOfExperience != null && (
                           <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800">
@@ -601,8 +664,11 @@ function ProfilePageContent() {
                     onClick={() => !updateSaving && setUpdateModalOpen(false)}
                     aria-hidden
                   />
-                  <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
-                    <div className="flex items-center justify-between gap-4">
+                  <div
+                    key={specialistProfile._id || specialistProfile.id || "update-form-container"}
+                    className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-slate-200 bg-white shadow-xl"
+                  >
+                    <div className="flex items-center justify-between gap-4 p-6 border-b border-slate-100 sticky top-0 bg-white z-[70] rounded-t-2xl">
                       <h2 id="update-specialist-title" className="text-lg font-semibold text-slate-900">
                         {t("updateModalTitle")}
                       </h2>
@@ -615,44 +681,86 @@ function ProfilePageContent() {
                         <X className="h-5 w-5" />
                       </button>
                     </div>
-                    <form onSubmit={handleUpdateSpecialistSubmit} className="mt-4 space-y-4">
-                      <div>
-                        <label htmlFor="update-professionalTitle" className="block text-sm font-medium text-slate-700">
-                          {t("professionalTitle")}
-                        </label>
-                        <input
-                          id="update-professionalTitle"
-                          name="professionalTitle"
-                          type="text"
-                          defaultValue={specialistProfile.professionalTitle ?? ""}
-                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-teal-500"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="update-specialty" className="block text-sm font-medium text-slate-700">
-                          {t("specialty")}
-                        </label>
-                        <input
-                          id="update-specialty"
-                          name="specialty"
-                          type="text"
-                          defaultValue={specialistProfile.specialty ?? ""}
-                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-teal-500"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="update-biography" className="block text-sm font-medium text-slate-700">
-                          {t("biography")}
-                        </label>
-                        <textarea
-                          id="update-biography"
-                          name="biography"
-                          rows={3}
-                          defaultValue={specialistProfile.biography ?? ""}
-                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-teal-500"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
+                    <form onSubmit={handleUpdateSpecialistSubmit} className="p-6 overflow-y-auto">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                        <div className="sm:col-span-2">
+                          <label htmlFor="update-professionalTitle" className="block text-sm font-medium text-slate-700">
+                            {t("professionalTitle")}
+                          </label>
+                          <input
+                            id="update-professionalTitle"
+                            name="professionalTitle"
+                            type="text"
+                            defaultValue={specialistProfile.professionalTitle ?? ""}
+                            className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-teal-500"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label htmlFor="update-specialty" className="block text-sm font-medium text-slate-700">
+                            {t("specialty")}
+                          </label>
+                          <div className="relative mt-1">
+                            <div
+                              role="combobox"
+                              aria-expanded={specialtyOpen}
+                              aria-haspopup="listbox"
+                              className={`flex min-h-[38px] cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition focus-within:border-teal-500 focus-within:ring-1 focus-within:ring-teal-500 ${specialtyOpen ? "border-teal-400 ring-1 ring-teal-500/20" : "hover:border-slate-300"}`}
+                              onClick={() => setSpecialtyOpen((o) => { if (!o) setSpecialtyQuery(""); return !o; })}
+                            >
+                              <input
+                                type="text"
+                                value={specialtyOpen ? specialtyQuery : selectedSpecialty}
+                                onChange={(e) => {
+                                  setSpecialtyQuery(e.target.value);
+                                  setSpecialtyOpen(true);
+                                }}
+                                onFocus={() => setSpecialtyOpen(true)}
+                                placeholder={selectedSpecialty || t("searchSpecialty") || "Buscar especialidad..."}
+                                className="flex-1 min-w-0 bg-transparent outline-none placeholder:text-slate-400"
+                              />
+                              <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${specialtyOpen ? "rotate-180" : ""}`} />
+                            </div>
+                            {specialtyOpen && (
+                              <ul
+                                role="listbox"
+                                className="absolute top-full left-0 right-0 z-[60] mt-1 max-h-48 overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+                              >
+                                {filteredSpecialties.length === 0 ? (
+                                  <li className="px-4 py-2 text-sm text-slate-500">No hay coincidencias</li>
+                                ) : (
+                                  filteredSpecialties.map((s) => (
+                                    <li
+                                      key={s}
+                                      role="option"
+                                      aria-selected={selectedSpecialty === s}
+                                      className={`cursor-pointer px-4 py-2 text-sm transition ${selectedSpecialty === s ? "bg-teal-50 text-teal-800 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedSpecialty(s);
+                                        setSpecialtyQuery("");
+                                        setSpecialtyOpen(false);
+                                      }}
+                                    >
+                                      {s}
+                                    </li>
+                                  ))
+                                )}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label htmlFor="update-biography" className="block text-sm font-medium text-slate-700">
+                            {t("biography")}
+                          </label>
+                          <textarea
+                            id="update-biography"
+                            name="biography"
+                            rows={3}
+                            defaultValue={specialistProfile.biography ?? ""}
+                            className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-teal-500"
+                          />
+                        </div>
                         <div>
                           <label htmlFor="update-yearsOfExperience" className="block text-sm font-medium text-slate-700">
                             {t("yearsOfExperience")}
@@ -679,148 +787,150 @@ function ProfilePageContent() {
                             className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-teal-500"
                           />
                         </div>
-                      </div>
-                      <div>
-                        <label htmlFor="update-languages" className="block text-sm font-medium text-slate-700">
-                          {t("languagesComma")}
-                        </label>
-                        <input
-                          id="update-languages"
-                          name="languages"
-                          type="text"
-                          defaultValue={specialistProfile.languages?.join(", ") ?? ""}
-                          placeholder={t("languagesPlaceholder")}
-                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-teal-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700">{t("profileImage")}</label>
-                        <div className="mt-1 flex items-center gap-4">
-                          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100">
-                            {specialistProfile.profileImageUrl ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={specialistProfile.profileImageUrl}
-                                alt=""
-                                className="h-full w-full object-cover"
-                                id="update-image-preview"
+                        <div className="sm:col-span-2">
+                          <label htmlFor="update-languages" className="block text-sm font-medium text-slate-700">
+                            {t("languagesComma")}
+                          </label>
+                          <input
+                            id="update-languages"
+                            name="languages"
+                            type="text"
+                            defaultValue={specialistProfile.languages?.join(", ") ?? ""}
+                            placeholder={t("languagesPlaceholder")}
+                            className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-teal-500"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-sm font-medium text-slate-700">{t("profileImage")}</label>
+                          <div className="mt-1 flex items-center gap-4">
+                            <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+                              {specialistProfile.profileImageUrl || (specialistProfile as any).image ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={specialistProfile.profileImageUrl || (specialistProfile as any).image}
+                                  alt=""
+                                  className="h-full w-full object-cover"
+                                  id="update-image-preview"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-slate-400">
+                                  <ImageIcon className="h-8 w-8" />
+                                </div>
+                              )}
+                            </div>
+                            <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition shadow-sm">
+                              {t("changePhoto")}
+                              <input
+                                type="file"
+                                name="image"
+                                accept="image/png,image/jpeg,image/webp,image/jpg"
+                                className="sr-only"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  const img = document.getElementById("update-image-preview") as HTMLImageElement | null;
+                                  if (file && img) {
+                                    img.src = URL.createObjectURL(file);
+                                    img.alt = "";
+                                  }
+                                  setUpdateImageName(file?.name ?? null);
+                                }}
                               />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center text-slate-400">
-                                <ImageIcon className="h-8 w-8" />
-                              </div>
-                            )}
+                            </label>
                           </div>
-                          <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
-                            {t("changePhoto")}
-                            <input
-                              type="file"
-                              name="image"
-                              accept="image/png,image/jpeg,image/webp,image/jpg"
-                              className="sr-only"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                const img = document.getElementById("update-image-preview") as HTMLImageElement | null;
-                                if (file && img) {
-                                  img.src = URL.createObjectURL(file);
-                                  img.alt = "";
-                                }
-                                setUpdateImageName(file?.name ?? null);
-                              }}
-                            />
-                          </label>
-                        </div>
-                        {updateImageName && (
-                          <p className="mt-1.5 flex items-center gap-1.5 text-sm text-emerald-600">
-                            <Check className="h-4 w-4 shrink-0" />
-                            {t("loaded")} {updateImageName}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700">
-                          <IdCard className="inline h-4 w-4 align-text-bottom" /> {t("licenseDocument")}
-                        </label>
-                        <div className="mt-1 flex flex-wrap items-center gap-2">
-                          {specialistProfile.licenseDocumentUrl && (
-                            <a
-                              href={specialistProfile.licenseDocumentUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs font-medium text-teal-600 hover:text-teal-700"
-                            >
-                              {t("currentDocument")}
-                            </a>
+                          {updateImageName && (
+                            <p className="mt-1.5 flex items-center gap-1.5 text-sm text-emerald-600">
+                              <Check className="h-4 w-4 shrink-0" />
+                              {t("loaded")} {updateImageName}
+                            </p>
                           )}
-                          <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
-                            {specialistProfile.licenseDocumentUrl ? t("replaceFile") : t("uploadFile")}
-                            <input
-                              type="file"
-                              name="cedula"
-                              accept="image/png,image/jpeg,image/webp,image/jpg,application/pdf"
-                              className="sr-only"
-                              onChange={(e) => setUpdateLicenseName(e.target.files?.[0]?.name ?? null)}
-                            />
-                          </label>
                         </div>
-                        {updateLicenseName && (
-                          <p className="mt-1.5 flex items-center gap-1.5 text-sm text-emerald-600">
-                            <Check className="h-4 w-4 shrink-0" />
-                            {t("loaded")} {updateLicenseName}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700">
-                          <FileCheck className="inline h-4 w-4 align-text-bottom" /> {t("degreeDocument")}
-                        </label>
-                        <div className="mt-1 flex flex-wrap items-center gap-2">
-                          {specialistProfile.degreeDocumentUrl && (
-                            <a
-                              href={specialistProfile.degreeDocumentUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs font-medium text-teal-600 hover:text-teal-700"
-                            >
-                              {t("currentDocument")}
-                            </a>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700">
+                            <IdCard className="inline h-4 w-4 align-text-bottom mr-1" /> {t("licenseDocument")}
+                          </label>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            {specialistProfile.licenseDocumentUrl && (
+                              <a
+                                href={specialistProfile.licenseDocumentUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs font-medium text-teal-600 hover:text-teal-700"
+                              >
+                                {t("currentDocument")}
+                              </a>
+                            )}
+                            <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                              {specialistProfile.licenseDocumentUrl ? t("replaceFile") : t("uploadFile")}
+                              <input
+                                type="file"
+                                name="cedula"
+                                accept="image/png,image/jpeg,image/webp,image/jpg,application/pdf"
+                                className="sr-only"
+                                onChange={(e) => setUpdateLicenseName(e.target.files?.[0]?.name ?? null)}
+                              />
+                            </label>
+                          </div>
+                          {updateLicenseName && (
+                            <p className="mt-1.5 flex items-center gap-1.5 text-sm text-emerald-600">
+                              <Check className="h-4 w-4 shrink-0" />
+                              {t("loaded")} {updateLicenseName}
+                            </p>
                           )}
-                          <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
-                            {specialistProfile.degreeDocumentUrl ? t("replaceFile") : t("uploadFile")}
-                            <input
-                              type="file"
-                              name="titleDocument"
-                              accept="image/png,image/jpeg,image/webp,image/jpg,application/pdf"
-                              className="sr-only"
-                              onChange={(e) => setUpdateDegreeName(e.target.files?.[0]?.name ?? null)}
-                            />
-                          </label>
                         </div>
-                        {updateDegreeName && (
-                          <p className="mt-1.5 flex items-center gap-1.5 text-sm text-emerald-600">
-                            <Check className="h-4 w-4 shrink-0" />
-                            {t("loaded")} {updateDegreeName}
-                          </p>
-                        )}
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700">
+                            <FileCheck className="inline h-4 w-4 align-text-bottom mr-1" /> {t("degreeDocument")}
+                          </label>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            {specialistProfile.degreeDocumentUrl && (
+                              <a
+                                href={specialistProfile.degreeDocumentUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs font-medium text-teal-600 hover:text-teal-700"
+                              >
+                                {t("currentDocument")}
+                              </a>
+                            )}
+                            <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                              {specialistProfile.degreeDocumentUrl ? t("replaceFile") : t("uploadFile")}
+                              <input
+                                type="file"
+                                name="titleDocument"
+                                accept="image/png,image/jpeg,image/webp,image/jpg,application/pdf"
+                                className="sr-only"
+                                onChange={(e) => setUpdateDegreeName(e.target.files?.[0]?.name ?? null)}
+                              />
+                            </label>
+                          </div>
+                          {updateDegreeName && (
+                            <p className="mt-1.5 flex items-center gap-1.5 text-sm text-emerald-600">
+                              <Check className="h-4 w-4 shrink-0" />
+                              {t("loaded")} {updateDegreeName}
+                            </p>
+                          )}
+                        </div>
                       </div>
+
                       {updateError && (
-                        <p className="text-sm font-medium text-red-600" role="alert">
+                        <p className="mt-4 text-sm font-medium text-red-600" role="alert">
                           {updateError}
                         </p>
                       )}
-                      <div className="flex justify-end gap-2 pt-2">
+
+                      <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-100">
                         <button
                           type="button"
                           onClick={() => setUpdateModalOpen(false)}
                           disabled={updateSaving}
-                          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition"
                         >
                           {t("cancel")}
                         </button>
                         <button
                           type="submit"
                           disabled={updateSaving}
-                          className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 disabled:opacity-50"
+                          className="flex items-center gap-2 rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-teal-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 disabled:opacity-50 transition shadow-sm"
                         >
                           {updateSaving ? (
                             <>

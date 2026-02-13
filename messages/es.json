@@ -293,6 +293,8 @@
     "paymentsBalanceDesc": "Recibe USDT y retira a la red que prefieras.",
     "activatePaymentAccount": "Activar tu cuenta de pago",
     "activateAccountDesc": "Tu cuenta NEAR debe recibir primero una pequeña cantidad de NEAR (al menos {min} NEAR) para existir en la blockchain. Luego podrás recibir y retirar USDT.",
+    "activateAutomatically": "Activar automáticamente",
+    "activateAutomaticallyHint": "Enviaremos una pequeña cantidad de NEAR a tu cuenta para que puedas usar pagos. Si no se hizo al registrarte, haz clic aquí.",
     "activatingAccount": "Activando tu cuenta…",
     "sendNearTo": "Envía NEAR a esta dirección",
     "copied": "Copiado",

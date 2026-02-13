@@ -32,6 +32,8 @@ export type NearContextValue = {
   createNearWallet: () => Promise<void>;
   /** Re-check if the NEAR account exists on-chain (e.g. after user funded it) */
   refreshAccountExists: () => Promise<void>;
+  /** Request automatic funding from relayer/faucet (e.g. when auto-fund failed or user clicks "Activate automatically") */
+  requestFunding: () => Promise<void>;
   /** NEAR JSON RPC provider */
   provider: JsonRpcProvider;
 };
@@ -44,6 +46,7 @@ const defaultValue: NearContextValue = {
   accountExistsOnChain: null,
   createNearWallet: async () => {},
   refreshAccountExists: async () => {},
+  requestFunding: async () => {},
   provider: new JsonRpcProvider({ url: NEAR_RPC_URL }),
 };
 
@@ -97,36 +100,72 @@ export function NearProvider({ children }: { children: ReactNode }) {
     if (walletId) await checkAccountExists(walletId);
   }, [walletId, checkAccountExists]);
 
-  /** Request one-time auto-fund from relayer/faucet API so the account exists on-chain. */
+  /** Request one-time auto-fund from relayer/faucet API so the account exists on-chain. Retries once after 5s if the first attempt fails. */
   const requestAutoFund = useCallback(async (accountId: string) => {
     if (autoFundRequestedRef.current) return;
     autoFundRequestedRef.current = true;
+
+    const doFund = async (): Promise<boolean> => {
+      setIsFunding(true);
+      try {
+        const res = await fetch("/api/near/fund", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accountId }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn("[NearContext] Auto-fund failed:", data.error ?? res.statusText);
+          return false;
+        }
+        for (let i = 0; i < 3; i++) {
+          await new Promise((r) => setTimeout(r, 2000 + i * 2000));
+          const exists = await checkAccountExists(accountId);
+          if (exists) return true;
+        }
+        return false;
+      } catch (e) {
+        console.warn("[NearContext] Auto-fund request error:", e);
+        return false;
+      } finally {
+        setIsFunding(false);
+      }
+    };
+
+    const ok = await doFund();
+    if (!ok) {
+      // Retry once after 5s (e.g. API cold start or transient failure)
+      await new Promise((r) => setTimeout(r, 5000));
+      await doFund();
+    }
+  }, [checkAccountExists]);
+
+  /** Request funding from relayer/faucet (for manual retry from UI; no ref guard). */
+  const requestFunding = useCallback(async () => {
+    if (!walletId) return;
     setIsFunding(true);
     try {
       const res = await fetch("/api/near/fund", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountId }),
+        body: JSON.stringify({ accountId: walletId }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        console.warn("[NearContext] Auto-fund failed:", data.error ?? res.statusText);
-        autoFundRequestedRef.current = false;
+        console.warn("[NearContext] requestFunding failed:", data.error ?? res.statusText);
         return;
       }
-      // Poll for account existence: 2s, then 4s, then 6s
       for (let i = 0; i < 3; i++) {
         await new Promise((r) => setTimeout(r, 2000 + i * 2000));
-        const exists = await checkAccountExists(accountId);
+        const exists = await checkAccountExists(walletId);
         if (exists) break;
       }
     } catch (e) {
-      console.warn("[NearContext] Auto-fund request error:", e);
-      autoFundRequestedRef.current = false;
+      console.warn("[NearContext] requestFunding error:", e);
     } finally {
       setIsFunding(false);
     }
-  }, [checkAccountExists]);
+  }, [walletId, checkAccountExists]);
 
   const createNearWallet = useCallback(async () => {
     setIsLoading(true);
@@ -200,9 +239,10 @@ export function NearProvider({ children }: { children: ReactNode }) {
       accountExistsOnChain,
       createNearWallet,
       refreshAccountExists,
+      requestFunding,
       provider,
     }),
-    [walletId, nearAccount, isLoading, isFunding, accountExistsOnChain, createNearWallet, refreshAccountExists]
+    [walletId, nearAccount, isLoading, isFunding, accountExistsOnChain, createNearWallet, refreshAccountExists, requestFunding]
   );
 
   return (

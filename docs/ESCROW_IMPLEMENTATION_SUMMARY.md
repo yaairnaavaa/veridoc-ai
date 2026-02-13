@@ -118,6 +118,62 @@ Body: {
 
 ## 🔧 Configuración requerida
 
+### Configuración de la wallet de escrow
+
+Sí, hace falta **crear y configurar una cuenta NEAR dedicada** que actúe como escrow. No es “configurar un wallet” en el sentido de MetaMask/Privy: es una cuenta NEAR que solo usa el backend para recibir USDT y luego liberar (85% + 15%).
+
+#### 1. Crear la cuenta escrow en NEAR
+
+Tienes dos opciones:
+
+- **Opción A – Subcuenta de tu cuenta principal**  
+  Si ya tienes `veridoc.near`, crea una subcuenta desde [NEAR Wallet](https://wallet.near.org) (o con `near-cli`):
+  - Nombre sugerido: `escrow.veridoc.near`
+  - Al crearla, NEAR Wallet te dará una **clave de acceso** (seed phrase o clave ed25519). Esa clave es la que usarás como `ESCROW_PRIVATE_KEY`.
+
+- **Opción B – Cuenta nueva**  
+  Crear una cuenta nueva en [wallet.near.org](https://wallet.near.org) (por ejemplo `escrow-veridoc.near`), guardar la clave y usar ese account id como escrow.
+
+No hace falta “conectar” esta cuenta en la app ni en el frontend. Solo existe en NEAR y el backend la usa con la clave privada.
+
+#### 2. Fondear la cuenta con NEAR (para gas)
+
+La cuenta escrow **tiene que tener NEAR** para pagar el gas cuando el cron ejecute las liberaciones (dos `ft_transfer` por consulta: uno al especialista, otro a la plataforma).
+
+- En **testnet**: envía ~1–2 NEAR desde wallet.testnet.near.org a `escrow.veridoc.near` (o la cuenta que uses).
+- En **mainnet**: envía al menos 1–5 NEAR (según volumen; cada liberación consume poco gas pero hay que tener margen).
+
+Puedes usar la misma cuenta que ya usas como relayer (por ejemplo `veridoc.near`) para enviar NEAR a la cuenta escrow.
+
+#### 3. Registro en el contrato USDT (NEP-145)
+
+Para **recibir y enviar USDT**, la cuenta escrow debe tener “storage” en el contrato USDT.
+
+- **No hace falta que lo hagas tú a mano.** En el código, cuando un paciente hace el primer depósito a escrow, el **relayer** (en `relay-escrow-deposit`) comprueba si la cuenta escrow tiene storage en USDT y, si no, hace `storage_deposit` por ti (paga el relayer, no la cuenta escrow).
+- Si quieres hacerlo tú una vez (opcional): desde NEAR Wallet o `near-cli`, llama al contrato `usdt.tether-token.near`, método `storage_deposit`, con `account_id` = tu cuenta escrow. Quien envía la transacción paga ~0.00125 NEAR.
+
+#### 4. Obtener la clave privada para el servidor
+
+Para que el **cron de liberación** pueda firmar en nombre del escrow, el servidor necesita la clave privada en formato `ed25519:...`:
+
+- Si creaste la cuenta con NEAR Wallet (seed phrase), puedes exportar la clave en [wallet.near.org](https://wallet.near.org) → tu cuenta escrow → Settings → Export private key (o usar `near-cli` con la seed).
+- El valor debe ser una cadena que empiece por `ed25519:` seguida de la clave en base58.
+
+Esa cadena es **ESCROW_PRIVATE_KEY**. Solo debe estar en el servidor (`.env` o Amplify / Secrets Manager), nunca en el frontend ni en el repo.
+
+#### 5. Resumen de pasos
+
+| Paso | Acción |
+|------|--------|
+| 1 | Crear cuenta NEAR para escrow (ej. `escrow.veridoc.near`) y guardar la clave. |
+| 2 | Enviar 1–5 NEAR a esa cuenta (para gas de las liberaciones). |
+| 3 | (Opcional) Hacer `storage_deposit` en USDT para esa cuenta; si no, el relayer lo hace en el primer depósito. |
+| 4 | En el servidor, configurar `ESCROW_ACCOUNT_ID` y `ESCROW_PRIVATE_KEY`. |
+
+No hay que “configurar” ningún wallet en el frontend para el escrow: la wallet de escrow solo la usa el backend con esa clave.
+
+---
+
 ### Variables de entorno (`.env` y Amplify):
 
 ```bash
@@ -125,13 +181,13 @@ Body: {
 ESCROW_ACCOUNT_ID=escrow.veridoc.near
 ESCROW_PRIVATE_KEY=ed25519:...  # Clave de la cuenta escrow (solo servidor)
 
-# Platform fee account
+# Platform fee account (puede ser tu cuenta principal, ej. veridoc.near)
 PLATFORM_FEE_ACCOUNT_ID=veridoc.near
 
 # Cron secret (para proteger /api/cron/release-escrow)
 CRON_SECRET=tu-secret-random-aqui
 
-# Relayer (ya existe)
+# Relayer (ya existe; paga gas del depósito a escrow)
 NEAR_RELAYER_ACCOUNT_ID=veridoc.near
 NEAR_RELAYER_PRIVATE_KEY=ed25519:...
 ```

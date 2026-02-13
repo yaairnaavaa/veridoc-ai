@@ -99,7 +99,7 @@ function ProfilePageContent() {
   const { ready, authenticated, user } = usePrivy();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { walletId, nearAccount, isLoading: nearLoading, createNearWallet, isFunding, provider, accountExistsOnChain, refreshAccountExists } = useNEAR();
+  const { walletId, nearAccount, isLoading: nearLoading, createNearWallet, isFunding, provider, accountExistsOnChain, refreshAccountExists, requestFunding } = useNEAR();
   const [copiedFundAddress, setCopiedFundAddress] = useState(false);
   const TABS = getTabs(t);
   const [usdtBalance, setUsdtBalance] = useState<string | null>(null);
@@ -980,6 +980,16 @@ function ProfilePageContent() {
                     </p>
                   ) : (
                     <>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => requestFunding()}
+                          className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+                        >
+                          {t("activateAutomatically")}
+                        </button>
+                        <span className="text-xs text-amber-800">{t("activateAutomaticallyHint")}</span>
+                      </div>
                       <p className="mt-3 text-xs font-medium text-amber-800">{t("sendNearTo")}</p>
                       <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                         <code className="max-w-full break-all rounded-lg bg-white px-3 py-2 font-mono text-xs text-slate-800 shadow-sm sm:text-sm">

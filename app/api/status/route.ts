@@ -474,6 +474,111 @@ async function checkSpecialistVerificationApi(): Promise<CheckResult> {
   }
 }
 
+function checkEscrow(): CheckResult {
+  const envVars = ["ESCROW_ACCOUNT_ID", "ESCROW_PRIVATE_KEY", "PLATFORM_FEE_ACCOUNT_ID"];
+  const accountId = process.env.ESCROW_ACCOUNT_ID ?? process.env.NEXT_PUBLIC_ESCROW_ACCOUNT_ID;
+  const privateKey = process.env.ESCROW_PRIVATE_KEY;
+  if (!accountId || !privateKey) {
+    return {
+      name: "Escrow (segunda opinión)",
+      status: "unconfigured",
+      message:
+        "ESCROW_ACCOUNT_ID y ESCROW_PRIVATE_KEY necesarios para depósito y liberación de pagos de segunda opinión.",
+      required: false,
+      envVars,
+    };
+  }
+  return {
+    name: "Escrow (segunda opinión)",
+    status: "ok",
+    message: `Cuenta escrow configurada (${accountId})`,
+    required: false,
+    envVars,
+  };
+}
+
+function checkCronReleaseEscrow(): CheckResult {
+  const envVars = ["CRON_SECRET"];
+  const secret = process.env.CRON_SECRET;
+  if (!secret || secret.trim() === "") {
+    return {
+      name: "Cron (release escrow)",
+      status: "unconfigured",
+      message: "CRON_SECRET no configurada. El cron que libera pagos a especialistas no podrá autorizarse.",
+      required: false,
+      envVars,
+    };
+  }
+  return {
+    name: "Cron (release escrow)",
+    status: "ok",
+    message: "CRON_SECRET configurada (cron de liberación de pagos)",
+    required: false,
+    envVars,
+  };
+}
+
+async function checkEscrowAccountOnChain(): Promise<CheckResult> {
+  const accountId = process.env.ESCROW_ACCOUNT_ID ?? process.env.NEXT_PUBLIC_ESCROW_ACCOUNT_ID;
+  const envVars = ["ESCROW_ACCOUNT_ID"];
+  if (!accountId) {
+    return {
+      name: "Escrow en NEAR (on-chain)",
+      status: "unconfigured",
+      message: "ESCROW_ACCOUNT_ID no configurada; no se comprueba la cuenta on-chain.",
+      required: false,
+      envVars,
+    };
+  }
+  const start = Date.now();
+  try {
+    const res = await fetchWithTimeout(NEAR_RPC_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "status",
+        method: "query",
+        params: {
+          request_type: "view_account",
+          finality: "final",
+          account_id: accountId,
+        },
+      }),
+    });
+    const latencyMs = Date.now() - start;
+    const data = await res.json().catch(() => ({}));
+    if (data.result?.amount !== undefined) {
+      return {
+        name: "Escrow en NEAR (on-chain)",
+        status: "ok",
+        message: `Cuenta ${accountId} existe en ${NEAR_NETWORK}`,
+        latencyMs,
+        required: false,
+        envVars,
+      };
+    }
+    return {
+      name: "Escrow en NEAR (on-chain)",
+      status: "error",
+      message: data.error?.message ?? `Cuenta ${accountId} no encontrada o RPC error: ${res.status}`,
+      latencyMs,
+      required: false,
+      envVars,
+    };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Error de conexión";
+    return {
+      name: "Escrow en NEAR (on-chain)",
+      status: "error",
+      message: msg,
+      latencyMs: Date.now() - start,
+      required: false,
+      envVars,
+    };
+  }
+}
+
 async function runAllChecks() {
   const [
     privy,
@@ -485,19 +590,38 @@ async function runAllChecks() {
     cloudinary,
     nearIntents,
     specialistApi,
+    escrow,
+    cronEscrow,
+    escrowOnChain,
   ] = await Promise.all([
-    checkPrivy(),                                   // sync-ish, no network
+    checkPrivy(),
     withTimeout(checkNearRpc(), "NEAR RPC"),
-    checkNearFunding(),                             // sync, no network
-    checkNearRelay(),                               // sync, no network
+    checkNearFunding(),
+    checkNearRelay(),
     withTimeout(checkLlamaCloud(), "LlamaParse"),
     withTimeout(checkNearAI(), "NEAR AI"),
-    Promise.resolve(checkCloudinary()),             // sync
-    Promise.resolve(checkNearIntentsSolver()),       // sync
+    Promise.resolve(checkCloudinary()),
+    Promise.resolve(checkNearIntentsSolver()),
     withTimeout(checkSpecialistVerificationApi(), "API verificación especialistas", FETCH_TIMEOUT_MS),
+    Promise.resolve(checkEscrow()),
+    Promise.resolve(checkCronReleaseEscrow()),
+    withTimeout(checkEscrowAccountOnChain(), "Escrow en NEAR (on-chain)"),
   ]);
 
-  return [privy, nearRpc, nearFunding, nearRelay, llama, nearAI, cloudinary, nearIntents, specialistApi];
+  return [
+    privy,
+    nearRpc,
+    nearFunding,
+    nearRelay,
+    llama,
+    nearAI,
+    cloudinary,
+    nearIntents,
+    specialistApi,
+    escrow,
+    cronEscrow,
+    escrowOnChain,
+  ];
 }
 
 function buildResponse(checks: CheckResult[]) {

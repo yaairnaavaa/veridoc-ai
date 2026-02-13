@@ -382,6 +382,25 @@ export default function StatusPage() {
         {/* Summary counts */}
         <CountsSummary counts={counts} />
 
+        {/* What we verify */}
+        <div className="mb-6 rounded-xl border border-[var(--foreground)]/10 bg-[var(--foreground)]/5 p-4 text-sm text-[var(--foreground)]/80">
+          <p className="font-medium text-[var(--foreground)] mb-2">Servicios verificados</p>
+          <ul className="list-disc list-inside space-y-1 text-xs">
+            <li><strong>Privy</strong> — login y wallets</li>
+            <li><strong>NEAR RPC</strong> — nodo blockchain</li>
+            <li><strong>NEAR funding</strong> — activación de cuentas nuevas (faucet)</li>
+            <li><strong>NEAR relay</strong> — retiros USDT (gasless)</li>
+            <li><strong>LlamaParse</strong> — análisis de PDFs (historias clínicas)</li>
+            <li><strong>NEAR AI</strong> — análisis con IA</li>
+            <li><strong>Cloudinary</strong> — fotos y documentos de especialistas</li>
+            <li><strong>NEAR Intents Solver</strong> — retiros a otras redes (POA)</li>
+            <li><strong>API verificación especialistas</strong> — backend de marketplace y perfiles</li>
+            <li><strong>Escrow</strong> — depósito y liberación de pagos (segunda opinión)</li>
+            <li><strong>Escrow en NEAR</strong> — cuenta escrow existente on-chain</li>
+            <li><strong>Cron release escrow</strong> — liberación automática de pagos a especialistas</li>
+          </ul>
+        </div>
+
         {/* Hosting hint */}
         {(data.status === "degraded" || data.status === "unhealthy") && (
           <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200">

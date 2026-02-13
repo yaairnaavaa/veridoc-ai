@@ -293,6 +293,8 @@
     "paymentsBalanceDesc": "Receive USDT and withdraw to your preferred network.",
     "activatePaymentAccount": "Activate your payment account",
     "activateAccountDesc": "Your NEAR account must receive a small amount of NEAR first (at least {min} NEAR) so it exists on-chain. Then you can receive USDT and withdraw.",
+    "activateAutomatically": "Activate automatically",
+    "activateAutomaticallyHint": "We'll send a small amount of NEAR to your account so you can use payments. If it didn't run when you signed up, click here.",
     "activatingAccount": "Activating your account…",
     "sendNearTo": "Send NEAR to this address",
     "copied": "Copied",

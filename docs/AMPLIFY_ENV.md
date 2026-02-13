@@ -26,6 +26,12 @@ Para que Next.js las use en runtime, el `amplify.yml` escribe esas variables en 
    | `NEAR_AI_API_KEY`                   | API key de NEAR AI                      | Sí        |
    | `SPECIALIST_VERIFICATION_API_URL`   | URL del API de verificación de especialistas | Opcional  |
    | `CLOUDINARY_URL`                    | URL de Cloudinary (fotos y docs)        | Opcional  |
+   | `ESCROW_ACCOUNT_ID`                | Cuenta NEAR escrow (segunda opinión)   | Si usas escrow |
+   | `ESCROW_PRIVATE_KEY`               | Clave de la cuenta escrow (solo servidor) | Si usas escrow |
+   | `PLATFORM_FEE_ACCOUNT_ID`          | Cuenta que recibe el 15% fee           | Si usas escrow |
+   | `CRON_SECRET`                      | Secret para proteger `/api/cron/release-escrow` | Si usas cron externo |
+
+   Para el flujo de escrow y pagos por segunda opinión ver `docs/ESCROW_SEGUNDA_OPINION_NEAR.md`.
 
 4. Guarda los cambios. Amplify **redespliega** la app para que las variables se apliquen (puede tardar unos minutos).
 

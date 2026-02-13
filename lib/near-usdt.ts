@@ -67,11 +67,12 @@ const FT_TRANSFER_DEPOSIT = BigInt(1);
 /**
  * Build a single ft_transfer action to send USDT from the signer to receiver_id.
  * Use with Account.signAndSendTransaction(USDT_CONTRACT_ID, [action]) or with signedDelegate for relay.
+ * @param memo Optional memo string (e.g. consultation_id) to attach to the transfer
  */
-export function createTransferUsdtAction(amountRaw: string, receiverId: string) {
+export function createTransferUsdtAction(amountRaw: string, receiverId: string, memo?: string | null) {
   return actionCreators.functionCall(
     "ft_transfer",
-    { receiver_id: receiverId, amount: amountRaw, memo: null },
+    { receiver_id: receiverId, amount: amountRaw, memo: memo ?? null },
     FT_TRANSFER_GAS,
     FT_TRANSFER_DEPOSIT
   );

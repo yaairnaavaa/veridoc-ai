@@ -8,6 +8,10 @@ import { uploadToCloudinary } from "@/lib/cloudinary";
 import { FileText, Send, Loader2, Eye } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { createConsultationAction } from "@/app/actions/consultations";
+import { useNEAR } from "@/context/NearContext";
+import { getUsdtBalance, formatUsdtBalance, parseUsdtAmount, createTransferUsdtAction, signedDelegateToBase64, USDT_CONTRACT_ID } from "@/lib/near-usdt";
+import { ESCROW_ACCOUNT_ID } from "@/lib/near-config";
+import { encodeSignedDelegate } from "@near-js/transactions";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -29,12 +33,15 @@ export function RequestSecondOpinion({
   priceUsdt,
 }: RequestSecondOpinionProps) {
   const { user, login } = usePrivy();
+  const { nearAccount, walletId } = useNEAR();
   const [analyses, setAnalyses] = useState<SavedAnalysis[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [checkingBalance, setCheckingBalance] = useState(false);
+  const [usdtBalance, setUsdtBalance] = useState<string | null>(null);
 
   const handlePreviewIDB = async () => {
     if (!selectedId) return;
@@ -59,6 +66,19 @@ export function RequestSecondOpinion({
     setAnalyses(getAnalyses());
   }, []);
 
+  // Check USDT balance when wallet is available
+  useEffect(() => {
+    if (!walletId) {
+      setUsdtBalance(null);
+      return;
+    }
+    setCheckingBalance(true);
+    getUsdtBalance(walletId)
+      .then((raw) => setUsdtBalance(formatUsdtBalance(raw)))
+      .catch(() => setUsdtBalance(null))
+      .finally(() => setCheckingBalance(false));
+  }, [walletId]);
+
   const handleSubmit = useCallback(async () => {
     if (!selectedId) return;
 
@@ -67,10 +87,44 @@ export function RequestSecondOpinion({
       return;
     }
 
-    const patientAccount = user.wallet?.address;
+    const patientAccount = walletId || user.wallet?.address;
     if (!patientAccount) {
       setError("No wallet connected. Please connect your wallet.");
       return;
+    }
+
+    if (!nearAccount) {
+      setError("NEAR wallet not ready. Please wait a moment and try again.");
+      return;
+    }
+
+    // Check USDT balance
+    if (usdtBalance === null) {
+      setError("Checking balance...");
+      setCheckingBalance(true);
+      try {
+        const raw = await getUsdtBalance(patientAccount);
+        const formatted = formatUsdtBalance(raw);
+        setUsdtBalance(formatted);
+        const balanceNum = parseFloat(formatted.replace(/,/g, ""));
+        if (balanceNum < priceUsdt) {
+          setError(`Insufficient balance. You have ${formatted} USDT, need ${priceUsdt} USDT.`);
+          setCheckingBalance(false);
+          return;
+        }
+      } catch (err) {
+        setError("Failed to check balance. Please try again.");
+        setCheckingBalance(false);
+        return;
+      } finally {
+        setCheckingBalance(false);
+      }
+    } else {
+      const balanceNum = parseFloat(usdtBalance.replace(/,/g, ""));
+      if (balanceNum < priceUsdt) {
+        setError(`Insufficient balance. You have ${usdtBalance} USDT, need ${priceUsdt} USDT.`);
+        return;
+      }
     }
 
     const selectedAnalysis = analyses.find((a) => a.id === selectedId);
@@ -107,23 +161,94 @@ export function RequestSecondOpinion({
       return;
     }
 
-    const result = await createConsultationAction({
-      patientAccount,
-      specialistAccount,
-      specialistName,
-      documentUrl,
-      analysisCommentsAI: selectedAnalysis.report.summary,
-    });
+    try {
+      // Step 1: Create consultation first to get consultationId
+      const consultationResult = await createConsultationAction({
+        patientAccount,
+        specialistAccount,
+        specialistName,
+        documentUrl,
+        analysisCommentsAI: selectedAnalysis.report.summary,
+      });
 
-    setSubmitting(true); // Redundant but for completeness
+      const createdId = consultationResult.data?._id ?? consultationResult.data?.id;
+      if (!consultationResult.success || !createdId) {
+        setError(consultationResult.error || "No se pudo crear la consulta. Intenta de nuevo.");
+        setSubmitting(false);
+        return;
+      }
 
-    if (result.success) {
+      const consultationId = createdId;
+
+      // Step 2: Meta-transaction (SignedDelegate) for escrow deposit — same API as withdraw in profile
+      const amountRaw = parseUsdtAmount(priceUsdt.toString());
+      const transferAction = createTransferUsdtAction(amountRaw, ESCROW_ACCOUNT_ID, consultationId);
+
+      const signedDelegate = await nearAccount.signedDelegate({
+        actions: [transferAction],
+        blockHeightTtl: 100,
+        receiverId: USDT_CONTRACT_ID,
+      });
+
+      const encoded = encodeSignedDelegate(signedDelegate);
+      const signedDelegateBase64 = signedDelegateToBase64(encoded);
+
+      // Step 4: Send to relay-escrow-deposit (meta-transaction)
+      const relayRes = await fetch("/api/near/relay-escrow-deposit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          signedDelegateBase64,
+        }),
+      });
+
+      const relayResult = await relayRes.json();
+      if (!relayRes.ok || !relayResult.success || !relayResult.txHash) {
+        setError(relayResult.error || relayResult.details || "Failed to process payment. Please try again.");
+        setSubmitting(false);
+        return;
+      }
+
+      // Step 5: Confirm payment with backend (client fetch so URL is same-origin)
+      const confirmRes = await fetch("/api/consultations/confirm-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          consultationId,
+          txHash: relayResult.txHash,
+          amountRaw,
+        }),
+      });
+      const confirmResult = await confirmRes.json();
+
+      if (!confirmRes.ok || !confirmResult.success) {
+        setError(confirmResult.error || confirmResult.details || "Pago procesado pero no se pudo confirmar. Contacta soporte.");
+        setSubmitting(false);
+        return;
+      }
+
+      // Success!
       setSubmitted(true);
-    } else {
-      setError(result.error || "Ocurrió un error al enviar la solicitud.");
+    } catch (e) {
+      console.error("Error in handleSubmit:", e);
+      setError(e instanceof Error ? e.message : "An unexpected error occurred. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
-  }, [selectedId, user, login, analyses, specialistAccount, specialistName]);
+  }, [
+    selectedId,
+    user,
+    login,
+    analyses,
+    specialistAccount,
+    specialistName,
+    nearAccount,
+    walletId,
+    usdtBalance,
+    priceUsdt,
+  ]);
 
   if (analyses.length === 0) {
     return (
@@ -158,9 +283,9 @@ export function RequestSecondOpinion({
             <Send className="h-5 w-5" />
           </span>
           <div>
-            <h3 className="font-semibold">Solicitud enviada</h3>
+            <h3 className="font-semibold">Solicitud enviada y pago confirmado</h3>
             <p className="text-sm text-emerald-700">
-              Tu análisis ha sido enviado a {specialistName}. Recibirás la segunda opinión en el plazo indicado (p. ej. 24–48 h). Este es un mockup; en producción se procesaría el pago y la notificación al especialista.
+              Tu análisis ha sido enviado a {specialistName} y el pago de {priceUsdt} USDT ha sido depositado en escrow. Recibirás la segunda opinión en el plazo indicado (p. ej. 24–48 h). El pago se liberará al especialista 24 horas después de que entregue su dictamen.
             </p>
           </div>
         </div>
@@ -176,6 +301,22 @@ export function RequestSecondOpinion({
       <p className="mt-1 text-xs text-slate-500">
         Elige un análisis guardado para enviarlo a {specialistName}. El costo de la revisión es de <strong>{priceUsdt} USDT</strong>.
       </p>
+      {walletId && (
+        <div className="mt-2 text-xs text-slate-600">
+          {checkingBalance ? (
+            <span>Verificando saldo...</span>
+          ) : usdtBalance !== null ? (
+            <span>
+              Tu saldo: <strong>{usdtBalance} USDT</strong>
+              {parseFloat(usdtBalance.replace(/,/g, "")) < priceUsdt && (
+                <span className="ml-2 text-rose-600">(insuficiente)</span>
+              )}
+            </span>
+          ) : (
+            <span className="text-amber-600">No se pudo verificar el saldo</span>
+          )}
+        </div>
+      )}
 
       <div className="mt-4 space-y-2">
         {analyses.map((a) => (
@@ -258,7 +399,7 @@ export function RequestSecondOpinion({
         </div>
       )}
       <p className="mt-3 text-xs text-slate-400">
-        Información: el envío se registrará en el backend y el especialista será notificado.
+        El pago se procesará mediante meta-transacción (gasless). El especialista recibirá el pago 24 horas después de entregar su dictamen.
       </p>
     </div>
   );

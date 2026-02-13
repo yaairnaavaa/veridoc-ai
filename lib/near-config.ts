@@ -24,6 +24,12 @@ export const VERIFIER_CONTRACT_ID = "intents.near";
 /** Relayer account that pays gas for meta-transactions (e.g. USDT withdraw). */
 export const RELAYER_ACCOUNT_ID = process.env.NEXT_PUBLIC_NEAR_RELAYER_ACCOUNT_ID ?? "veridoc.near";
 
+/** Escrow account that receives USDT payments for second opinions. */
+export const ESCROW_ACCOUNT_ID = process.env.ESCROW_ACCOUNT_ID ?? process.env.NEXT_PUBLIC_ESCROW_ACCOUNT_ID ?? "escrow.veridoc.near";
+
+/** Platform account that receives the 15% fee. */
+export const PLATFORM_FEE_ACCOUNT_ID = process.env.PLATFORM_FEE_ACCOUNT_ID ?? "veridoc.near";
+
 /**
  * Valid NEAR account ID: 2–64 chars.
  * - Implicit: exactly 64 lowercase hex (with or without 0x prefix).

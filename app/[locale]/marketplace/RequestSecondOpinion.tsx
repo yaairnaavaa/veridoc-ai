@@ -99,33 +99,33 @@ export function RequestSecondOpinion({
     }
 
     // Check USDT balance
-    if (usdtBalance === null) {
-      setError("Checking balance...");
-      setCheckingBalance(true);
-      try {
-        const raw = await getUsdtBalance(patientAccount);
-        const formatted = formatUsdtBalance(raw);
-        setUsdtBalance(formatted);
-        const balanceNum = parseFloat(formatted.replace(/,/g, ""));
-        if (balanceNum < priceUsdt) {
-          setError(`Insufficient balance. You have ${formatted} USDT, need ${priceUsdt} USDT.`);
-          setCheckingBalance(false);
-          return;
-        }
-      } catch (err) {
-        setError("Failed to check balance. Please try again.");
-        setCheckingBalance(false);
-        return;
-      } finally {
-        setCheckingBalance(false);
-      }
-    } else {
-      const balanceNum = parseFloat(usdtBalance.replace(/,/g, ""));
-      if (balanceNum < priceUsdt) {
-        setError(`Insufficient balance. You have ${usdtBalance} USDT, need ${priceUsdt} USDT.`);
-        return;
-      }
-    }
+    // if (usdtBalance === null) {
+    //   setError("Checking balance...");
+    //   setCheckingBalance(true);
+    //   try {
+    //     const raw = await getUsdtBalance(patientAccount);
+    //     const formatted = formatUsdtBalance(raw);
+    //     setUsdtBalance(formatted);
+    //     const balanceNum = parseFloat(formatted.replace(/,/g, ""));
+    //     if (balanceNum < priceUsdt) {
+    //       setError(`Insufficient balance. You have ${formatted} USDT, need ${priceUsdt} USDT.`);
+    //       setCheckingBalance(false);
+    //       return;
+    //     }
+    //   } catch (err) {
+    //     setError("Failed to check balance. Please try again.");
+    //     setCheckingBalance(false);
+    //     return;
+    //   } finally {
+    //     setCheckingBalance(false);
+    //   }
+    // } else {
+    //   const balanceNum = parseFloat(usdtBalance.replace(/,/g, ""));
+    //   if (balanceNum < priceUsdt) {
+    //     setError(`Insufficient balance. You have ${usdtBalance} USDT, need ${priceUsdt} USDT.`);
+    //     return;
+    //   }
+    // }
 
     const selectedAnalysis = analyses.find((a) => a.id === selectedId);
     if (!selectedAnalysis) return;

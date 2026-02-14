@@ -328,13 +328,15 @@ export const StepResults = ({
                 )}
               </button>
             ) : null}
-            <button
-              type="button"
-              onClick={handleDownload}
-              className="mt-3 flex w-full items-center justify-center rounded-full bg-slate-900 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-            >
-              {t("downloadPdf")}
-            </button>
+            {!nearLoading ? (
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="mt-3 flex w-full items-center justify-center rounded-full bg-slate-900 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              >
+                {t("downloadPdf")}
+              </button>
+            ) : null}
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <button
                 type="button"

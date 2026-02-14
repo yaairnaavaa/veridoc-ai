@@ -172,6 +172,30 @@ export async function POST(request: NextRequest) {
     const txHash =
       typeof result?.transaction_outcome?.id === "string" ? result.transaction_outcome.id : undefined;
 
+    // Verify execution succeeded; receipt failures can still mark status as Failure
+    const status = result?.status ?? result?.final_execution_status;
+    const isFailure =
+      typeof status === "object" &&
+      status !== null &&
+      "Failure" in status &&
+      (status as { Failure?: unknown }).Failure != null;
+    if (isFailure) {
+      const failure = (status as { Failure?: { ActionError?: { kind?: { ExecutionError?: string }; message?: string } } }).Failure;
+      const errMsg =
+        failure?.ActionError?.kind?.ExecutionError ??
+        failure?.ActionError?.message ??
+        (typeof failure === "object" ? JSON.stringify(failure) : "Transaction failed");
+      console.error("[near/relay-escrow-deposit] Execution failed:", errMsg);
+      return NextResponse.json(
+        {
+          error: "La transacción no se ejecutó correctamente.",
+          details: errMsg,
+          txHash,
+        },
+        { status: 502 }
+      );
+    }
+
     // Extract memo if present (may contain consultation_id)
     const memo = getFtTransferMemo(signedDelegate.delegateAction);
 

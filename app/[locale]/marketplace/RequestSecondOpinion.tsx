@@ -42,6 +42,8 @@ export function RequestSecondOpinion({
   const [previewing, setPreviewing] = useState(false);
   const [checkingBalance, setCheckingBalance] = useState(false);
   const [usdtBalance, setUsdtBalance] = useState<string | null>(null);
+  /** Hash of the USDT→escrow transaction (so user can verify in explorer; not the 2 NEAR fund tx) */
+  const [paymentTxHash, setPaymentTxHash] = useState<string | null>(null);
 
   const handlePreviewIDB = async () => {
     if (!selectedId) return;
@@ -206,12 +208,13 @@ export function RequestSecondOpinion({
 
       const relayResult = await relayRes.json();
       if (!relayRes.ok || !relayResult.success || !relayResult.txHash) {
-        setError(relayResult.error || relayResult.details || "Failed to process payment. Please try again.");
+        const msg = [relayResult.error, relayResult.details].filter(Boolean).join(" — ") || "No se pudo procesar el pago. Intenta de nuevo.";
+        setError(msg);
         setSubmitting(false);
         return;
       }
 
-      // Step 5: Confirm payment with backend (client fetch so URL is same-origin)
+      // Step 5: Confirm payment with backend (optional; backend may not have the endpoint yet)
       const confirmRes = await fetch("/api/consultations/confirm-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -221,16 +224,26 @@ export function RequestSecondOpinion({
           amountRaw,
         }),
       });
-      const confirmResult = await confirmRes.json();
+      const confirmResult = await confirmRes.json().catch(() => ({}));
 
-      if (!confirmRes.ok || !confirmResult.success) {
+      const confirmOk = confirmRes.ok && confirmResult.success;
+      const backendNotFound =
+        confirmRes.status === 404 ||
+        (confirmResult.error && String(confirmResult.error).toLowerCase().includes("route not found"));
+
+      if (!confirmOk && !backendNotFound) {
         setError(confirmResult.error || confirmResult.details || "Pago procesado pero no se pudo confirmar. Contacta soporte.");
         setSubmitting(false);
         return;
       }
 
-      // Success!
+      // Success: USDT was sent to escrow. If backend doesn't have confirm-payment yet, we still show success.
+      setPaymentTxHash(relayResult.txHash);
       setSubmitted(true);
+      if (backendNotFound) {
+        setError(null);
+        // Optional: you could set a non-blocking warning state here to show "Backend sin endpoint de confirmación"
+      }
     } catch (e) {
       console.error("Error in handleSubmit:", e);
       setError(e instanceof Error ? e.message : "An unexpected error occurred. Please try again.");
@@ -276,17 +289,33 @@ export function RequestSecondOpinion({
   }
 
   if (submitted) {
+    const explorerBase = typeof window !== "undefined" && (process.env.NEXT_PUBLIC_NEAR_NETWORK === "testnet")
+      ? "https://nearblocks.io/txns"
+      : "https://nearblocks.io/txns";
     return (
       <div className="rounded-3xl border border-emerald-200/70 bg-emerald-50/80 p-6 shadow-sm backdrop-blur">
         <div className="flex items-center gap-3 text-emerald-800">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100">
             <Send className="h-5 w-5" />
           </span>
-          <div>
+          <div className="min-w-0 flex-1">
             <h3 className="font-semibold">Solicitud enviada y pago confirmado</h3>
-            <p className="text-sm text-emerald-700">
+            <p className="mt-1 text-sm text-emerald-700">
               Tu análisis ha sido enviado a {specialistName} y el pago de {priceUsdt} USDT ha sido depositado en escrow. Recibirás la segunda opinión en el plazo indicado (p. ej. 24–48 h). El pago se liberará al especialista 24 horas después de que entregue su dictamen.
             </p>
+            {paymentTxHash && (
+              <p className="mt-3 text-xs text-emerald-600">
+                Transacción del pago USDT (no la de 2 NEAR de activación):{" "}
+                <a
+                  href={`${explorerBase}/${paymentTxHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono underline break-all"
+                >
+                  {paymentTxHash.slice(0, 12)}…{paymentTxHash.slice(-8)}
+                </a>
+              </p>
+            )}
           </div>
         </div>
       </div>

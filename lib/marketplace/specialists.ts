@@ -95,13 +95,15 @@ export async function getSpecialistsFromApi(): Promise<UiSpecialist[]> {
     return [];
   }
   try {
-    const url = `${baseUrl.replace(/\/$/, "")}/api/specialists`;
+    const url = `${baseUrl.replace(/\/$/, "")}/api/specialists?status=Verified`;
     const res = await fetch(url, { cache: "no-store" });
     const raw = await res.json().catch(() => null);
     if (!res.ok) return [];
     const list = Array.isArray(raw) ? raw : raw?.data;
     if (!Array.isArray(list)) return [];
-    return list.map((item: ApiSpecialist) => mapApiSpecialistToUi(item));
+    const mapped = list.map((item: ApiSpecialist) => mapApiSpecialistToUi(item));
+    // Filtrar solo especialistas Verified (defensa en profundidad)
+    return mapped.filter((s) => s.status === "Verified");
   } catch (e) {
     console.warn("Marketplace: failed to fetch specialists from API.", e);
     return [];
@@ -137,7 +139,10 @@ export async function getSpecialistByIdentifierFromApi(identifier: string): Prom
     if (!res.ok) return null;
     const item = raw?.data ?? raw;
     if (!item || typeof item !== "object") return null;
-    return mapApiSpecialistToUi(item as ApiSpecialist);
+    const ui = mapApiSpecialistToUi(item as ApiSpecialist);
+    // Solo mostrar especialistas Verified en el marketplace
+    if (ui.status !== "Verified") return null;
+    return ui;
   } catch (e) {
     console.warn("Marketplace: failed to fetch specialist by identifier from API.", e);
     return null;

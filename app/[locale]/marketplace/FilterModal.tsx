@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo } from "react";
-import { X, Languages, Award, Briefcase, DollarSign, ShieldCheck } from "lucide-react";
+import { X, Languages, Award, Briefcase, DollarSign } from "lucide-react";
 import type { UiSpecialist } from "@/lib/marketplace/specialists";
 
 export type MarketplaceFilters = {
@@ -9,8 +9,6 @@ export type MarketplaceFilters = {
   experienceMin: number;
   experienceMax: number;
   specialty: string;
-  /** Filter by verification status: "" (all), "Verified", "Under Review" */
-  statusFilter: string;
   priceMin: number | null;
   priceMax: number | null;
 };
@@ -20,7 +18,6 @@ const DEFAULT_FILTERS: MarketplaceFilters = {
   experienceMin: 0,
   experienceMax: 99,
   specialty: "",
-  statusFilter: "",
   priceMin: null,
   priceMax: null,
 };
@@ -245,25 +242,6 @@ export function FilterModal({
                 className="w-24 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-400/20"
               />
             </div>
-          </div>
-
-          {/* Status: Verified | Under Review */}
-          <div>
-            <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
-              <ShieldCheck className="h-4 w-4 text-teal-600" />
-              Status
-            </div>
-            <select
-              value={filters.statusFilter}
-              onChange={(e) =>
-                onFiltersChange({ ...filters, statusFilter: e.target.value })
-              }
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-400/20"
-            >
-              <option value="">All</option>
-              <option value="Verified">Verified</option>
-              <option value="Under Review">Under Review</option>
-            </select>
           </div>
         </div>
 

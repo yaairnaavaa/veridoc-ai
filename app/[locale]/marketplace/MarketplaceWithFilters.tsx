@@ -17,7 +17,6 @@ function applyFilters(specialists: UiSpecialist[], f: MarketplaceFilters): UiSpe
     }
     if (s.experience < f.experienceMin || s.experience > f.experienceMax) return false;
     if (f.specialty && s.specialty !== f.specialty) return false;
-    if (f.statusFilter && s.status !== f.statusFilter) return false;
     if (f.priceMin != null && s.priceUsdt < f.priceMin) return false;
     if (f.priceMax != null && s.priceUsdt > f.priceMax) return false;
     return true;
@@ -30,7 +29,6 @@ function hasActiveFilters(f: MarketplaceFilters): boolean {
     f.experienceMin > 0 ||
     f.experienceMax < 99 ||
     !!f.specialty ||
-    !!f.statusFilter ||
     f.priceMin != null ||
     f.priceMax != null
   );

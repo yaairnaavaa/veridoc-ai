@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { X, Loader2, Send } from "lucide-react";
-import { updateConsultationAction } from "@/app/actions/consultations";
+import { updateConsultationAction, releaseConsultationNowAction } from "@/app/actions/consultations";
+import { parseUsdtAmount } from "@/lib/near-usdt";
 
 type ConsultationResponseModalProps = {
     isOpen: boolean;
@@ -10,6 +11,10 @@ type ConsultationResponseModalProps = {
     onSuccess: () => void;
     consultationId: string;
     patientAccount: string;
+    /** NEAR account of the specialist (for immediate payout mock). */
+    specialistAccount: string;
+    /** Price in USDT (e.g. 10). Used for release amount. */
+    amountUsdt: number;
 };
 
 export function ConsultationResponseModal({
@@ -18,6 +23,8 @@ export function ConsultationResponseModal({
     onSuccess,
     consultationId,
     patientAccount,
+    specialistAccount,
+    amountUsdt,
 }: ConsultationResponseModalProps) {
     const [response, setResponse] = useState("");
     const [saving, setSaving] = useState(false);
@@ -38,12 +45,35 @@ export function ConsultationResponseModal({
                 analysisCommentsSpecialist: response.trim(),
             });
 
-            if (result.success) {
-                onSuccess();
-                onClose();
-            } else {
+            if (!result.success) {
                 setError(result.error || "Error al guardar el dictamen");
+                setSaving(false);
+                return;
             }
+
+            // Mock: release escrow immediately (no 24h wait) so specialist receives USDT
+            const amountRaw = parseUsdtAmount(String(amountUsdt));
+            const releaseResult = await releaseConsultationNowAction(
+                consultationId,
+                amountRaw,
+                specialistAccount
+            );
+
+            if (!releaseResult.success) {
+                const releaseErr =
+                    releaseResult.error ||
+                    "Dictamen guardado pero no se pudo liberar el pago.";
+                setError(
+                    !specialistAccount
+                        ? "Dictamen guardado. Para recibir el pago en USDT, configura tu cuenta NEAR en tu perfil de especialista."
+                        : releaseErr
+                );
+                setSaving(false);
+                return;
+            }
+
+            onSuccess();
+            onClose();
         } catch (err) {
             setError("Error de red al conectar con el servidor");
         } finally {

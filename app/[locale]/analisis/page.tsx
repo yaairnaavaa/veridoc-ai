@@ -320,6 +320,10 @@ export default function AnalisisPage() {
   const [specialistConsultations, setSpecialistConsultations] = useState<any[]>([]);
   const [isLoadingConsultations, setIsLoadingConsultations] = useState(false);
   const [isSpecialist, setIsSpecialist] = useState(false);
+  const [specialistProfile, setSpecialistProfile] = useState<{
+    nearAddress?: string;
+    consultationPrice?: number;
+  } | null>(null);
   const [selectedConsultationForDictamen, setSelectedConsultationForDictamen] = useState<any | null>(null);
 
   const refreshLocal = useCallback(() => {
@@ -358,20 +362,34 @@ export default function AnalisisPage() {
     }
   }, [user]);
 
-  // Check if current user is a specialist
+  // Check if current user is a specialist and load profile (for payout: nearAddress, consultationPrice)
   useEffect(() => {
     const address = user?.wallet?.address;
     if (!address) {
       setIsSpecialist(false);
+      setSpecialistProfile(null);
       return;
     }
     fetch(`/api/specialists/identifier/${encodeURIComponent(address)}`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         const profile = data?.data ?? data;
-        setIsSpecialist(!!profile && (profile.status === "Verified" || profile.status === "Verificado"));
+        const verified = !!profile && (profile.status === "Verified" || profile.status === "Verificado");
+        setIsSpecialist(verified);
+        setSpecialistProfile(
+          verified && profile
+            ? {
+                nearAddress: profile.nearAddress ?? profile.near_address,
+                consultationPrice:
+                  profile.consultationPrice ?? profile.consultation_price ?? 0,
+              }
+            : null
+        );
       })
-      .catch(() => setIsSpecialist(false));
+      .catch(() => {
+        setIsSpecialist(false);
+        setSpecialistProfile(null);
+      });
   }, [user]);
 
   useEffect(() => {
@@ -572,6 +590,18 @@ export default function AnalisisPage() {
           isOpen={true}
           consultationId={selectedConsultationForDictamen._id}
           patientAccount={selectedConsultationForDictamen.patientAccount}
+          specialistAccount={
+            specialistProfile?.nearAddress ??
+            selectedConsultationForDictamen.specialistAccount ??
+            user?.wallet?.address ??
+            ""
+          }
+          amountUsdt={
+            specialistProfile?.consultationPrice ??
+            selectedConsultationForDictamen.consultationPrice ??
+            selectedConsultationForDictamen.priceUsdt ??
+            0
+          }
           onClose={() => setSelectedConsultationForDictamen(null)}
           onSuccess={() => {
             refreshSpecialistConsultations();

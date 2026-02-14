@@ -3,7 +3,7 @@ import { Account } from "@near-js/accounts";
 import { JsonRpcProvider } from "@near-js/providers";
 import { KeyPairSigner } from "@near-js/signers";
 import type { KeyPairString } from "@near-js/crypto";
-import { NEAR_RPC_URL, ESCROW_ACCOUNT_ID, PLATFORM_FEE_ACCOUNT_ID } from "@/lib/near-config";
+import { NEAR_RPC_URL, ESCROW_ACCOUNT_ID, PLATFORM_FEE_ACCOUNT_ID, isValidNearAccountId } from "@/lib/near-config";
 import { USDT_CONTRACT_ID, createTransferUsdtAction, hasStorageDeposit, createStorageDepositAction } from "@/lib/near-usdt";
 import { splitEscrowAmount } from "@/lib/escrow";
 
@@ -112,6 +112,14 @@ export async function POST(request: NextRequest) {
         errors.push({
           consultationId: consultationId ?? "unknown",
           error: "Missing consultation id, amount_raw or specialistAccount",
+        });
+        continue;
+      }
+
+      if (!isValidNearAccountId(specialistAccount)) {
+        errors.push({
+          consultationId,
+          error: `specialistAccount "${specialistAccount}" is not a valid NEAR account (use specialist's nearAddress, not internal id)`,
         });
         continue;
       }

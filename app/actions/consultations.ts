@@ -222,3 +222,63 @@ export async function confirmPaymentAction(
         };
     }
 }
+
+/**
+ * Releases escrow for a single consultation immediately (mock: no 24h delay).
+ * Call this after the specialist submits their diagnosis.
+ * Uses CRON_SECRET server-side to call the release-now API.
+ */
+export async function releaseConsultationNowAction(
+    consultationId: string,
+    amountRaw: string,
+    specialistAccount: string
+): Promise<{
+    success: boolean;
+    error?: string;
+    txHash?: string;
+}> {
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret) {
+        return { success: false, error: "CRON_SECRET not configured" };
+    }
+
+    const base =
+        process.env.NEXT_PUBLIC_APP_URL ||
+        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+        "http://localhost:3000";
+
+    try {
+        const res = await fetch(`${base.replace(/\/$/, "")}/api/consultations/release-now`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-cron-secret": cronSecret,
+            },
+            body: JSON.stringify({
+                consultationId,
+                amountRaw,
+                specialistAccount,
+            }),
+            cache: "no-store",
+        });
+
+        const result = await res.json();
+        if (!res.ok) {
+            return {
+                success: false,
+                error: result.error || result.details || `Release failed: ${res.status}`,
+            };
+        }
+
+        return {
+            success: true,
+            txHash: result.txHash ?? result.specialistTxHash,
+        };
+    } catch (e) {
+        console.error("releaseConsultationNowAction:", e);
+        return {
+            success: false,
+            error: e instanceof Error ? e.message : "Network error",
+        };
+    }
+}

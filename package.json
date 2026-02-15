@@ -19,6 +19,7 @@
     "@noble/hashes": "^2.0.1",
     "@privy-io/react-auth": "^3.13.1",
     "@tatchi-xyz/sdk": "^0.58.0",
+    "borsh": "^1.0.0",
     "jspdf": "^4.1.0",
     "llama-parse": "^0.1.0",
     "llamaindex": "^0.12.1",

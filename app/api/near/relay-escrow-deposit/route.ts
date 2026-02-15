@@ -13,12 +13,12 @@ import {
   createStorageDepositAction,
 } from "@/lib/near-usdt";
 
-// Lazy-load borsh so the route module loads on Vercel even if process.cwd() differs at cold start.
+// Lazy-load borsh from project root so Vercel bundles it (nested node_modules may not be included).
 let _borsh: { deserialize(schema: unknown, buffer: Uint8Array): unknown } | null = null;
 function getBorsh(): { deserialize(schema: unknown, buffer: Uint8Array): unknown } {
   if (!_borsh) {
-    const requireNearBorsh = createRequire(path.join(process.cwd(), "node_modules/@near-js/transactions/package.json"));
-    _borsh = requireNearBorsh("borsh") as { deserialize(schema: unknown, buffer: Uint8Array): unknown };
+    const requireFromRoot = createRequire(path.join(process.cwd(), "package.json"));
+    _borsh = requireFromRoot("borsh") as { deserialize(schema: unknown, buffer: Uint8Array): unknown };
   }
   return _borsh;
 }

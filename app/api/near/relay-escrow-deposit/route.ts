@@ -13,11 +13,17 @@ import {
   createStorageDepositAction,
 } from "@/lib/near-usdt";
 
-// Use same borsh as @near-js/transactions (1.0.0: deserialize(schema, buffer)).
-const requireNearBorsh = createRequire(path.join(process.cwd(), "node_modules/@near-js/transactions/package.json"));
-const borsh = requireNearBorsh("borsh") as { deserialize(schema: unknown, buffer: Uint8Array): unknown };
+// Lazy-load borsh so the route module loads on Vercel even if process.cwd() differs at cold start.
+let _borsh: { deserialize(schema: unknown, buffer: Uint8Array): unknown } | null = null;
+function getBorsh(): { deserialize(schema: unknown, buffer: Uint8Array): unknown } {
+  if (!_borsh) {
+    const requireNearBorsh = createRequire(path.join(process.cwd(), "node_modules/@near-js/transactions/package.json"));
+    _borsh = requireNearBorsh("borsh") as { deserialize(schema: unknown, buffer: Uint8Array): unknown };
+  }
+  return _borsh;
+}
 function deserializeSignedDelegate(schema: unknown, buffer: Uint8Array): unknown {
-  return borsh.deserialize(schema, buffer);
+  return getBorsh().deserialize(schema, buffer);
 }
 
 /**
@@ -86,6 +92,18 @@ function getFtTransferMemo(delegateAction: SignedDelegate["delegateAction"]): st
 
 // Force Node.js runtime on Vercel so createRequire/path work and route is not treated as Edge
 export const runtime = "nodejs";
+// Ensure this route is never statically optimized (can help with 405 on Vercel)
+export const dynamic = "force-dynamic";
+
+/**
+ * GET: simple check that this route is deployed (e.g. open in browser on Vercel)
+ */
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    message: "Use POST with body: { signedDelegateBase64 }",
+  });
+}
 
 /**
  * OPTIONS: allow CORS preflight so browser can send POST with application/json

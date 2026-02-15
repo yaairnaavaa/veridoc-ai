@@ -12,7 +12,15 @@ frontend:
       commands:
         # Amplify solo expone las variables en build, no en runtime. Next.js (SSR/API)
         # necesita leerlas desde .env.production. Escribirlas aquí antes del build.
+        # Los valores se configuran en la consola de Amplify (Environment variables).
+        # NEAR_* incluye: NEAR_FAUCET_*, NEAR_RELAYER_*, etc. NEXT_PUBLIC_* incluye Intents API key.
         - env | grep -E '^(LLAMA_CLOUD_API_KEY|NEAR_AI_API_KEY|SPECIALIST_VERIFICATION_API_URL|CLOUDINARY_URL|CLOUDINARY_API_KEY|CLOUDINARY_API_SECRET|ESCROW_ACCOUNT_ID|ESCROW_PRIVATE_KEY|PLATFORM_FEE_ACCOUNT_ID|CRON_SECRET|NEXT_PUBLIC_|NEAR_)=' >> .env.production || true
+        # Comprobar que las variables NEAR llegaron (solo nombres, sin valores)
+        - |
+          for v in NEAR_FAUCET_ACCOUNT_ID NEAR_FAUCET_PRIVATE_KEY NEAR_RELAYER_ACCOUNT_ID NEAR_RELAYER_PRIVATE_KEY NEXT_PUBLIC_NEAR_INTENTS_SOLVER_RELAY_API_KEY; do
+            eval "val=\$$v"
+            if [ -n "$val" ]; then echo "OK $v"; else echo "FALTA $v"; fi
+          done
         - npm run build
   artifacts:
     baseDirectory: .next

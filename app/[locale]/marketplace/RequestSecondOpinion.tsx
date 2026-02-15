@@ -206,9 +206,25 @@ export function RequestSecondOpinion({
         }),
       });
 
-      const relayResult = await relayRes.json();
+      const relayText = await relayRes.text();
+      let relayResult: { success?: boolean; txHash?: string; error?: string; details?: string };
+      try {
+        relayResult = relayText ? JSON.parse(relayText) : {};
+      } catch (parseErr) {
+        setError(
+          `Error en relay-escrow-deposit: el servidor respondió con código ${relayRes.status} y contenido no JSON (no se pudo parsear). ` +
+            (relayText
+              ? `Respuesta del servidor: "${relayText.slice(0, 150)}${relayText.length > 150 ? "…" : ""}"`
+              : "Sin cuerpo en la respuesta. Revisa la consola del servidor (relayer/NEAR, ESCROW_PRIVATE_KEY).")
+        );
+        setSubmitting(false);
+        return;
+      }
+
       if (!relayRes.ok || !relayResult.success || !relayResult.txHash) {
-        const msg = [relayResult.error, relayResult.details].filter(Boolean).join(" — ") || "No se pudo procesar el pago. Intenta de nuevo.";
+        const msg =
+          [relayResult.error, relayResult.details].filter(Boolean).join(" — ") ||
+          `No se pudo procesar el pago (código ${relayRes.status}). Revisa que NEAR_RELAYER_* y escrow estén configurados.`;
         setError(msg);
         setSubmitting(false);
         return;
@@ -224,7 +240,20 @@ export function RequestSecondOpinion({
           amountRaw,
         }),
       });
-      const confirmResult = await confirmRes.json().catch(() => ({}));
+      const confirmText = await confirmRes.text();
+      let confirmResult: { success?: boolean; error?: string; details?: string } = {};
+      try {
+        confirmResult = confirmText ? JSON.parse(confirmText) : {};
+      } catch {
+        // Respuesta no JSON (p. ej. 500 con HTML o texto)
+        if (!confirmRes.ok && confirmRes.status !== 404) {
+          setError(
+            `confirm-payment respondió con código ${confirmRes.status} y contenido no JSON: "${confirmText.slice(0, 100)}…". El pago USDT ya se realizó; la confirmación en backend falló.`
+          );
+          setSubmitting(false);
+          return;
+        }
+      }
 
       const confirmOk = confirmRes.ok && confirmResult.success;
       const backendNotFound =
@@ -232,7 +261,11 @@ export function RequestSecondOpinion({
         (confirmResult.error && String(confirmResult.error).toLowerCase().includes("route not found"));
 
       if (!confirmOk && !backendNotFound) {
-        setError(confirmResult.error || confirmResult.details || "Pago procesado pero no se pudo confirmar. Contacta soporte.");
+        setError(
+          confirmResult.error ||
+            confirmResult.details ||
+            `Pago procesado pero no se pudo confirmar en backend (código ${confirmRes.status}). Contacta soporte.`
+        );
         setSubmitting(false);
         return;
       }
@@ -246,7 +279,16 @@ export function RequestSecondOpinion({
       }
     } catch (e) {
       console.error("Error in handleSubmit:", e);
-      setError(e instanceof Error ? e.message : "An unexpected error occurred. Please try again.");
+      let message: string;
+      if (e instanceof SyntaxError) {
+        message = `Error de formato: la respuesta del servidor no es JSON válido (${e.message}). Suele indicar que el API devolvió HTML o texto plano (p. ej. "Internal Server Error"). Revisa la pestaña Red del navegador o la consola del servidor.`;
+      } else if (e instanceof Error) {
+        message = e.message;
+        if (e.name && e.name !== "Error") message = `[${e.name}] ${message}`;
+      } else {
+        message = "Error inesperado. Revisa la consola (F12) para más detalles.";
+      }
+      setError(message);
     } finally {
       setSubmitting(false);
     }

@@ -75,7 +75,9 @@ export function ConsultationResponseModal({
             onSuccess();
             onClose();
         } catch (err) {
-            setError("Error de red al conectar con el servidor");
+            setError(
+                err instanceof Error ? err.message : "Error inesperado al guardar el dictamen"
+            );
         } finally {
             setSaving(false);
         }

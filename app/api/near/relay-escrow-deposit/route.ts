@@ -227,15 +227,23 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     const name = e instanceof Error ? e.name : "Error";
+    const stack = e instanceof Error ? e.stack : undefined;
     console.error("[near/relay-escrow-deposit]", name, message, e);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Relay failed",
-        details: message,
-        code: name !== "Error" ? name : undefined,
-      },
-      { status: 500 }
-    );
+
+    const body: Record<string, unknown> = {
+      success: false,
+      error: "Relay failed",
+      details: message,
+      code: name !== "Error" ? name : undefined,
+    };
+    // Incluir stack si piden diagnóstico (header o query en request)
+    const requestUrl = request.url || "";
+    const wantsDebug =
+      request.headers.get("x-debug") === "1" ||
+      request.headers.get("x-diagnose") === "1" ||
+      (typeof requestUrl === "string" && requestUrl.includes("diagnose=1"));
+    if (wantsDebug && stack) body.stack = stack;
+
+    return NextResponse.json(body, { status: 500 });
   }
 }

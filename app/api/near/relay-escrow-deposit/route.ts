@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createRequire } from "module";
-import path from "path";
+import { deserialize as borshDeserialize, type Schema } from "borsh";
 import { Account } from "@near-js/accounts";
 import { JsonRpcProvider } from "@near-js/providers";
 import { KeyPairSigner } from "@near-js/signers";
@@ -13,17 +12,8 @@ import {
   createStorageDepositAction,
 } from "@/lib/near-usdt";
 
-// Lazy-load borsh from project root so Vercel bundles it (nested node_modules may not be included).
-let _borsh: { deserialize(schema: unknown, buffer: Uint8Array): unknown } | null = null;
-function getBorsh(): { deserialize(schema: unknown, buffer: Uint8Array): unknown } {
-  if (!_borsh) {
-    const requireFromRoot = createRequire(path.join(process.cwd(), "package.json"));
-    _borsh = requireFromRoot("borsh") as { deserialize(schema: unknown, buffer: Uint8Array): unknown };
-  }
-  return _borsh;
-}
-function deserializeSignedDelegate(schema: unknown, buffer: Uint8Array): unknown {
-  return getBorsh().deserialize(schema, buffer);
+function deserializeSignedDelegate(schema: Schema, buffer: Uint8Array): unknown {
+  return borshDeserialize(schema, buffer);
 }
 
 /**

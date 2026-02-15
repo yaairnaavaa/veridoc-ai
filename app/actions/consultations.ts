@@ -247,10 +247,8 @@ export async function releaseConsultationNowAction(
         (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
         "http://localhost:3000";
 
-    const url = `${base.replace(/\/$/, "")}/api/consultations/release-now`;
-    let res: Response;
     try {
-        res = await fetch(url, {
+        const res = await fetch(`${base.replace(/\/$/, "")}/api/consultations/release-now`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -263,34 +261,24 @@ export async function releaseConsultationNowAction(
             }),
             cache: "no-store",
         });
+
+        const result = await res.json();
+        if (!res.ok) {
+            return {
+                success: false,
+                error: result.error || result.details || `Release failed: ${res.status}`,
+            };
+        }
+
+        return {
+            success: true,
+            txHash: result.txHash ?? result.specialistTxHash,
+        };
     } catch (e) {
-        console.error("releaseConsultationNowAction fetch:", e);
+        console.error("releaseConsultationNowAction:", e);
         return {
             success: false,
-            error: e instanceof Error ? e.message : "Error de red al conectar",
+            error: e instanceof Error ? e.message : "Network error",
         };
     }
-
-    let result: { error?: string; details?: string; txHash?: string; specialistTxHash?: string };
-    try {
-        result = await res.json();
-    } catch {
-        const text = await res.text().catch(() => "");
-        return {
-            success: false,
-            error: res.ok ? "Respuesta inválida del servidor" : `Error ${res.status}: ${text.slice(0, 200) || res.statusText}`,
-        };
-    }
-
-    if (!res.ok) {
-        return {
-            success: false,
-            error: result.error || result.details || `Liberación fallida: ${res.status}`,
-        };
-    }
-
-    return {
-        success: true,
-        txHash: result.txHash ?? result.specialistTxHash,
-    };
 }

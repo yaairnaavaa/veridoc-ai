@@ -14,8 +14,6 @@ frontend:
         # necesita leerlas desde .env.production. Escribirlas aquí antes del build.
         - env | grep -E '^(LLAMA_CLOUD_API_KEY|NEAR_RELAYER_ACCOUNT_ID|NEAR_RELAYER_PRIVATE_KEY|NEAR_AI_API_KEY|NEAR_FAUCET_ACCOUNT_ID|NEAR_FAUCET_PRIVATE_KEY|SPECIALIST_VERIFICATION_API_URL|CLOUDINARY_URL|CLOUDINARY_API_KEY|CLOUDINARY_API_SECRET|ESCROW_ACCOUNT_ID|ESCROW_PRIVATE_KEY|PLATFORM_FEE_ACCOUNT_ID|CRON_SECRET|NEXT_PUBLIC_|NEAR_)=' >> .env.production || true
         - npm run build
-        # Tras el build, copiar .env.production dentro de .next para que el artifact lo incluya (Lambda runtime).
-        - cp .env.production .next/.env.production 2>/dev/null || true
   artifacts:
     baseDirectory: .next
     files:

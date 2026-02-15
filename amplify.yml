@@ -25,7 +25,7 @@ frontend:
             fi
           done
         # (3) Comprobar qué variables NEAR están ya en .env.production (solo nombres)
-        - grep -E '^(NEAR_|NEXT_PUBLIC_NEAR_INTENTS)' .env.production | cut -d= -f1 | while read k; do echo "EN .env.production: $k"; done || true
+        - 'grep -E ''^(NEAR_|NEXT_PUBLIC_NEAR_INTENTS)'' .env.production | cut -d= -f1 | while read k; do echo "EN .env.production = $k"; done || true'
         - npm run build
   artifacts:
     baseDirectory: .next

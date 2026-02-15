@@ -85,44 +85,63 @@ function getFtTransferMemo(delegateAction: SignedDelegate["delegateAction"]): st
 }
 
 /**
+ * GET /api/near/relay-escrow-deposit
+ * Diagnóstico: indica si las variables necesarias están configuradas (sin mostrar valores).
+ * Útil para verificar en producción que el runtime tiene las env vars.
+ */
+export async function GET() {
+  const relayerAccountId = process.env.NEAR_RELAYER_ACCOUNT_ID ?? RELAYER_ACCOUNT_ID;
+  const relayerKeySet = Boolean(process.env.NEAR_RELAYER_PRIVATE_KEY);
+  const escrowId = ESCROW_ACCOUNT_ID;
+  return NextResponse.json({
+    ok: true,
+    relayerAccountId,
+    relayerConfigured: relayerKeySet,
+    escrowAccountId: escrowId,
+    message: relayerKeySet
+      ? "Relay listo para depósitos a escrow."
+      : "Falta NEAR_RELAYER_PRIVATE_KEY en el entorno (Hosting → Environment variables y artifact con .env.production).",
+  });
+}
+
+/**
  * POST /api/near/relay-escrow-deposit
  * Body: { signedDelegateBase64: string }
- * 
+ *
  * Meta-transaction endpoint for depositing USDT to escrow account.
  * Only allows transfers to ESCROW_ACCOUNT_ID (whitelist).
  * Relayer pays gas; user only signs once.
  */
 export async function POST(request: NextRequest) {
-  const relayerAccountId = process.env.NEAR_RELAYER_ACCOUNT_ID ?? RELAYER_ACCOUNT_ID;
-  const relayerPrivateKey = process.env.NEAR_RELAYER_PRIVATE_KEY;
-
-  if (!relayerPrivateKey) {
-    return NextResponse.json(
-      { error: "Relayer not configured. Set NEAR_RELAYER_PRIVATE_KEY." },
-      { status: 503 }
-    );
-  }
-
-  let body: { signedDelegateBase64?: string };
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
+    const relayerAccountId = process.env.NEAR_RELAYER_ACCOUNT_ID ?? RELAYER_ACCOUNT_ID;
+    const relayerPrivateKey = process.env.NEAR_RELAYER_PRIVATE_KEY;
 
-  const signedDelegateBase64 = typeof body?.signedDelegateBase64 === "string" ? body.signedDelegateBase64.trim() : "";
-  if (!signedDelegateBase64) {
-    return NextResponse.json({ error: "Missing signedDelegateBase64 in body" }, { status: 400 });
-  }
+    if (!relayerPrivateKey) {
+      return NextResponse.json(
+        { success: false, error: "Relayer not configured. Set NEAR_RELAYER_PRIVATE_KEY." },
+        { status: 503 }
+      );
+    }
 
-  try {
+    let body: { signedDelegateBase64?: string };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    const signedDelegateBase64 = typeof body?.signedDelegateBase64 === "string" ? body.signedDelegateBase64.trim() : "";
+    if (!signedDelegateBase64) {
+      return NextResponse.json({ success: false, error: "Missing signedDelegateBase64 in body" }, { status: 400 });
+    }
     const signedDelegate = decodeSignedDelegateBase64(signedDelegateBase64);
-    
+
     // NEP-366: delegate receiverId = contract that executes the actions (USDT)
     const delegateReceiverId = signedDelegate.delegateAction.receiverId;
     if (delegateReceiverId !== USDT_CONTRACT_ID) {
       return NextResponse.json(
-        { error: `Delegate receiver must be ${USDT_CONTRACT_ID}` },
+        { success: false, error: `Delegate receiver must be ${USDT_CONTRACT_ID}` },
         { status: 400 }
       );
     }
@@ -131,14 +150,14 @@ export async function POST(request: NextRequest) {
     const ftTransferReceiverId = getFtTransferReceiverId(signedDelegate.delegateAction);
     if (!ftTransferReceiverId) {
       return NextResponse.json(
-        { error: "No ft_transfer action found in delegate" },
+        { success: false, error: "No ft_transfer action found in delegate" },
         { status: 400 }
       );
     }
 
     if (ftTransferReceiverId !== ESCROW_ACCOUNT_ID) {
       return NextResponse.json(
-        { error: `Transfer receiver must be escrow account (${ESCROW_ACCOUNT_ID}), got ${ftTransferReceiverId}` },
+        { success: false, error: `Transfer receiver must be escrow account (${ESCROW_ACCOUNT_ID}), got ${ftTransferReceiverId}` },
         { status: 400 }
       );
     }
@@ -188,6 +207,7 @@ export async function POST(request: NextRequest) {
       console.error("[near/relay-escrow-deposit] Execution failed:", errMsg);
       return NextResponse.json(
         {
+          success: false,
           error: "La transacción no se ejecutó correctamente.",
           details: errMsg,
           txHash,
@@ -205,10 +225,16 @@ export async function POST(request: NextRequest) {
       memo: memo ?? undefined,
     });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Unknown error";
-    console.error("[near/relay-escrow-deposit]", message, e);
+    const message = e instanceof Error ? e.message : String(e);
+    const name = e instanceof Error ? e.name : "Error";
+    console.error("[near/relay-escrow-deposit]", name, message, e);
     return NextResponse.json(
-      { error: "Relay failed", details: message },
+      {
+        success: false,
+        error: "Relay failed",
+        details: message,
+        code: name !== "Error" ? name : undefined,
+      },
       { status: 500 }
     );
   }

@@ -84,6 +84,24 @@ function getFtTransferMemo(delegateAction: SignedDelegate["delegateAction"]): st
   return null;
 }
 
+// Force Node.js runtime on Vercel so createRequire/path work and route is not treated as Edge
+export const runtime = "nodejs";
+
+/**
+ * OPTIONS: allow CORS preflight so browser can send POST with application/json
+ */
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Max-Age": "86400",
+    },
+  });
+}
+
 /**
  * POST /api/near/relay-escrow-deposit
  * Body: { signedDelegateBase64: string }

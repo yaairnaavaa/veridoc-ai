@@ -196,7 +196,12 @@ export function RequestSecondOpinion({
       const signedDelegateBase64 = signedDelegateToBase64(encoded);
 
       // Step 4: Send to relay-escrow-deposit (meta-transaction)
-      const relayRes = await fetch("/api/near/relay-escrow-deposit", {
+      // Use absolute URL so redirects (e.g. on Vercel) don't turn POST into GET
+      const relayUrl =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/api/near/relay-escrow-deposit`
+          : "/api/near/relay-escrow-deposit";
+      const relayRes = await fetch(relayUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

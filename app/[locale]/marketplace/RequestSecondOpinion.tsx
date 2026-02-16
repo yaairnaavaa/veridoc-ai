@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { getAnalyses, type SavedAnalysis } from "@/lib/veridoc/analysesStore";
 import { getAnalysisIDB } from "@/lib/veridoc/idbStore";
@@ -32,6 +33,8 @@ export function RequestSecondOpinion({
   specialistName,
   priceUsdt,
 }: RequestSecondOpinionProps) {
+  const t = useTranslations("requestSecondOpinion");
+  const tErrors = useTranslations("errors");
   const { user, login } = usePrivy();
   const { nearAccount, walletId } = useNEAR();
   const [analyses, setAnalyses] = useState<SavedAnalysis[]>([]);
@@ -54,11 +57,11 @@ export function RequestSecondOpinion({
         const url = URL.createObjectURL(data.pdfFile);
         window.open(url, "_blank");
       } else {
-        alert("El archivo no está en IndexedDB (tal vez se generó en otro dispositivo)");
+        alert(t("fileNotInIDB"));
       }
     } catch (err) {
       console.error("Preview IDB failed for ID:", selectedId, err);
-      alert(`Error al previsualizar: ${err instanceof Error ? err.message : String(err)}`);
+      alert(`${t("errorPreview")} ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setPreviewing(false);
     }
@@ -91,12 +94,12 @@ export function RequestSecondOpinion({
 
     const patientAccount = walletId || user.wallet?.address;
     if (!patientAccount) {
-      setError("No wallet connected. Please connect your wallet.");
+      setError(t("noWallet"));
       return;
     }
 
     if (!nearAccount) {
-      setError("NEAR wallet not ready. Please wait a moment and try again.");
+      setError(t("nearNotReady"));
       return;
     }
 
@@ -158,7 +161,7 @@ export function RequestSecondOpinion({
     }
 
     if (!documentUrl) {
-      setError("No se pudo obtener el documento (PDF) para enviar. Por favor, intenta de nuevo o genera un nuevo análisis.");
+      setError(t("couldNotGetDocument"));
       setSubmitting(false);
       return;
     }
@@ -175,7 +178,7 @@ export function RequestSecondOpinion({
 
       const createdId = consultationResult.data?._id ?? consultationResult.data?.id;
       if (!consultationResult.success || !createdId) {
-        setError(consultationResult.error || "No se pudo crear la consulta. Intenta de nuevo.");
+        setError(consultationResult.error || t("couldNotCreateConsultation"));
         setSubmitting(false);
         return;
       }
@@ -213,7 +216,9 @@ export function RequestSecondOpinion({
 
       const relayResult = await relayRes.json();
       if (!relayRes.ok || !relayResult.success || !relayResult.txHash) {
-        const msg = [relayResult.error, relayResult.details].filter(Boolean).join(" — ") || "No se pudo procesar el pago. Intenta de nuevo.";
+        const msg = relayResult.errorCode
+          ? tErrors(relayResult.errorCode as "transactionFailed" | "paymentNotVerified")
+          : [relayResult.error, relayResult.details].filter(Boolean).join(" — ") || t("paymentProcessFailed");
         setError(msg);
         setSubmitting(false);
         return;
@@ -237,7 +242,7 @@ export function RequestSecondOpinion({
         (confirmResult.error && String(confirmResult.error).toLowerCase().includes("route not found"));
 
       if (!confirmOk && !backendNotFound) {
-        setError(confirmResult.error || confirmResult.details || "Pago procesado pero no se pudo confirmar. Contacta soporte.");
+        setError(confirmResult.errorCode ? tErrors(confirmResult.errorCode as "paymentNotVerified" | "transactionFailed") : confirmResult.error || confirmResult.details || t("paymentProcessedConfirmFailed"));
         setSubmitting(false);
         return;
       }
@@ -251,7 +256,7 @@ export function RequestSecondOpinion({
       }
     } catch (e) {
       console.error("Error in handleSubmit:", e);
-      setError(e instanceof Error ? e.message : "An unexpected error occurred. Please try again.");
+      setError(e instanceof Error ? e.message : t("unexpectedError"));
     } finally {
       setSubmitting(false);
     }
@@ -266,28 +271,30 @@ export function RequestSecondOpinion({
     walletId,
     usdtBalance,
     priceUsdt,
+    t,
+    tErrors,
   ]);
 
   if (analyses.length === 0) {
     return (
       <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm backdrop-blur">
         <h3 className="text-sm font-semibold text-slate-900">
-          Enviar mis análisis y solicitar segunda opinión
+          {t("noAnalysesTitle")}
         </h3>
         <p className="mt-2 text-sm text-slate-600">
-          No tienes análisis guardados. Completa el wizard en Veridoc para generar un análisis y luego podrás enviarlo a este especialista.
+          {t("noAnalysesDesc")}
         </p>
         <Link
           href="/veridoc"
           className="mt-4 inline-flex items-center gap-2 rounded-full bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700"
         >
-          Ir al wizard
+          {t("goToWizard")}
         </Link>
         <Link
           href="/analisis"
           className="ml-3 inline-flex text-sm font-medium text-slate-600 hover:text-slate-900"
         >
-          Ver mis análisis
+          {t("viewMyAnalyses")}
         </Link>
       </div>
     );
@@ -304,13 +311,13 @@ export function RequestSecondOpinion({
             <Send className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <h3 className="font-semibold">Solicitud enviada y pago confirmado</h3>
+            <h3 className="font-semibold">{t("requestSent")}</h3>
             <p className="mt-1 text-sm text-emerald-700">
-              Tu análisis ha sido enviado a {specialistName} y el pago de {priceUsdt} USDT ha sido depositado en escrow. Recibirás la segunda opinión en el plazo indicado (p. ej. 24–48 h). El pago se liberará al especialista 24 horas después de que entregue su dictamen.
+              {t("requestSentDesc", { specialistName, priceUsdt })}
             </p>
             {paymentTxHash && (
               <p className="mt-3 text-xs text-emerald-600">
-                Transacción del pago USDT (no la de 2 NEAR de activación):{" "}
+                {t("paymentTxLabel")}{" "}
                 <a
                   href={`${explorerBase}/${paymentTxHash}`}
                   target="_blank"
@@ -330,24 +337,24 @@ export function RequestSecondOpinion({
   return (
     <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm backdrop-blur">
       <h3 className="text-sm font-semibold text-slate-900">
-        Enviar mis análisis y solicitar segunda opinión
+        {t("title")}
       </h3>
       <p className="mt-1 text-xs text-slate-500">
-        Elige un análisis guardado para enviarlo a {specialistName}. El costo de la revisión es de <strong>{priceUsdt} USDT</strong>.
+        {t("sendAnalysesDesc", { specialistName })} <strong>{priceUsdt} USDT</strong>.
       </p>
       {walletId && (
         <div className="mt-2 text-xs text-slate-600">
           {checkingBalance ? (
-            <span>Verificando saldo...</span>
+            <span>{t("checkingBalance")}</span>
           ) : usdtBalance !== null ? (
             <span>
-              Tu saldo: <strong>{usdtBalance} USDT</strong>
+              {t("yourBalance")} <strong>{usdtBalance} USDT</strong>
               {parseFloat(usdtBalance.replace(/,/g, "")) < priceUsdt && (
-                <span className="ml-2 text-rose-600">(insuficiente)</span>
+                <span className="ml-2 text-rose-600">{t("insufficient")}</span>
               )}
             </span>
           ) : (
-            <span className="text-amber-600">No se pudo verificar el saldo</span>
+            <span className="text-amber-600">{t("couldNotVerifyBalance")}</span>
           )}
         </div>
       )}
@@ -386,7 +393,7 @@ export function RequestSecondOpinion({
                   }}
                   disabled={previewing}
                   className="ml-auto inline-flex h-8 items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2 text-[10px] font-bold uppercase tracking-wider text-teal-700 transition hover:bg-teal-100 disabled:opacity-50"
-                  title="Ver PDF desde IndexedDB (Prueba local)"
+                  title={t("previewIDB")}
                 >
                   {previewing ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -411,12 +418,12 @@ export function RequestSecondOpinion({
           {submitting ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Enviando…
+              {t("sending")}
             </>
           ) : (
             <>
               <Send className="h-4 w-4" />
-              Pagar {priceUsdt} USDT y solicitar segunda opinión
+              {t("payAndRequest", { priceUsdt })}
             </>
           )}
         </button>
@@ -424,7 +431,7 @@ export function RequestSecondOpinion({
           href="/analisis"
           className="text-sm font-medium text-slate-600 hover:text-slate-900"
         >
-          Ver todos mis análisis
+          {t("viewAllMyAnalyses")}
         </Link>
       </div>
       {error && (
@@ -433,7 +440,7 @@ export function RequestSecondOpinion({
         </div>
       )}
       <p className="mt-3 text-xs text-slate-400">
-        El pago se procesará mediante meta-transacción (gasless). El especialista recibirá el pago 24 horas después de entregar su dictamen.
+        {t("paymentNote")}
       </p>
     </div>
   );
